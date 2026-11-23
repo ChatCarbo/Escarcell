@@ -1,0 +1,21 @@
+[package]
+name = "escarcelle-app"
+description = "Application de bureau Escarcelle (Tauri v2)"
+version = "0.1.0"
+edition = "2021"
+authors = ["ChatCarbo"]
+license = "GPL-3.0-or-later"
+rust-version = "1.77"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled", "backup"] }
+tauri-plugin-dialog = "2"
+thiserror = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+escarcelle-core = { path = "../../crates/escarcelle-core" }

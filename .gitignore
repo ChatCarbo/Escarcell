@@ -1,0 +1,16 @@
+# Compilation Rust
+target/
+
+# Front-end
+node_modules/
+app/dist/
+
+# Données locales et sauvegardes
+*.db
+*.db-journal
+
+# Systèmes
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

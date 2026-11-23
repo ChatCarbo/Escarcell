@@ -1,0 +1,22 @@
+{
+  "name": "escarcelle-ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-dialog": "^2"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5",
+    "svelte": "^5",
+    "vite": "^6",
+    "@tauri-apps/cli": "^2"
+  },
+  "license": "GPL-3.0-or-later"
+}

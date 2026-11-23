@@ -1,0 +1,5 @@
+# Espace de travail séparé : il dépend de crates téléchargées (tauri, rusqlite, serde),
+# alors que le cœur (../crates) se compile sans réseau.
+[workspace]
+resolver = "2"
+members = ["src-tauri"]

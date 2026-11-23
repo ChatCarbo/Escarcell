@@ -1,0 +1,892 @@
+{
+  "schema_version": 1,
+  "publie_le": "2026-11-23",
+  "note": "Taux en fraction décimale texte (\"0.0075\" = 0,75 %). Montants en euros texte. null = inconnu. a_verifier = valeur à confirmer sur la documentation officielle avant publication. gestion_fonds_euros_max = plafond contractuel ; les frais réels du fonds euros sont inclus dans le rendement net publié, utilisé par le comparateur.",
+  "etablissements": [
+    {
+      "id": "boursobank",
+      "nom": "BoursoBank",
+      "type": "banque",
+      "couleur": "#0284C7",
+      "produits": [
+        {
+          "id": "bourso-livret-a",
+          "type": "LIVRET_A",
+          "nom": "Livret A",
+          "source_url": "https://www.boursobank.com/epargne/livret-a",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false
+        },
+        {
+          "id": "bourso-ldds",
+          "type": "LDDS",
+          "nom": "LDDS",
+          "source_url": "https://www.boursobank.com/epargne",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false
+        },
+        {
+          "id": "bourso-lep",
+          "type": "LEP",
+          "nom": "LEP",
+          "source_url": "https://www.boursobank.com/epargne",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false
+        },
+        {
+          "id": "boursovie",
+          "type": "ASSURANCE_VIE",
+          "nom": "BoursoVie",
+          "assureur": "Generali Vie",
+          "versement_initial_min": "300",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "rachat": "0",
+            "gestion_fonds_euros": null,
+            "gestion_uc": "0.0075",
+            "gestion_fonds_euros_max": "0.0075",
+            "option_securisation_plus_values": "0.01"
+          },
+          "fonds_euros": [
+            {
+              "nom": "Euro Exclusif",
+              "rendement_net": {
+                "2025": "0.0300"
+              }
+            },
+            {
+              "nom": "Eurossima",
+              "rendement_net": {
+                "2025": "0.0167"
+              }
+            }
+          ],
+          "conditions": [
+            "Compte bancaire BoursoBank requis pour adhérer",
+            "Clients BoursoFirst (minimum 75 000 €, contrats ouverts depuis le 12/12/2024) : 0,50 % max sur les UC, 0,60 % sur Euro Exclusif"
+          ],
+          "source_url": "https://www.boursorama.com/content/brochure_tarifaire/boursorama_bt.pdf",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "source": "Brochure tarifaire BoursoBank, tarifs applicables au 18/11/2026 (pied de page « BT_ 15/04/2026 »)"
+        },
+        {
+          "id": "bourso-per",
+          "type": "PER",
+          "nom": "BoursoBank PERin Matla",
+          "assureur": "Oradéa Vie (groupe Société Générale)",
+          "versement_initial_min": "150",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "rachat": "0",
+            "changement_mode_gestion": "0",
+            "gestion_fonds_euros": null,
+            "gestion_fonds_euros_max": "0.0050",
+            "gestion_uc": "0.0050"
+          },
+          "conditions": [
+            "Compte bancaire BoursoBank requis",
+            "Fonds euros limités à 50 % du plan en gestion libre : pas d'allocation 100 % sécurisée possible",
+            "Retraits en capital fractionné limités à 2 par an (selon un comparateur)"
+          ],
+          "source_url": "https://www.boursorama.com/content/brochure_tarifaire/boursorama_bt.pdf",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "mode_gestion": null,
+          "modes_de_gestion": [
+            {
+              "nom": "Gestion libre",
+              "frais": {
+                "fonds_euros_securite_en_euro_max": "0.0050",
+                "fonds_euros_infra_retraite_max": "0.0075",
+                "uc_max": "0.0050"
+              }
+            },
+            {
+              "nom": "Pilotage horizon retraite",
+              "frais": {
+                "fonds_euros_securite_en_euro_max": "0.0050",
+                "uc_max": "0.0085",
+                "dont_frais_allocation_max": "0.0035"
+              }
+            }
+          ],
+          "fonds_euros": [
+            {
+              "nom": "Sécurité en Euro",
+              "rendement_net": {
+                "2025": "0.0350"
+              }
+            },
+            {
+              "nom": "Sécurité Euro infra-retraite",
+              "rendement_net": {
+                "2025": "0.0350"
+              }
+            }
+          ],
+          "source": "Brochure tarifaire BoursoBank, tarifs applicables au 18/11/2026 (pied de page « BT_ 15/04/2026 »)",
+          "contraintes_fonds_euros": {
+            "gestion_libre_part_max": "0.50",
+            "pilotage_horizon_part_max_a_la_retraite": {
+              "prudent": "0.90",
+              "equilibre": "0.70",
+              "dynamique": "0.50"
+            },
+            "prudent_part_max_plus_de_10_ans_avant": "0.30",
+            "securite_euro_infra_retraite_plafond_contrat": "1000000",
+            "source": "Comparateur (boursedescredits.com) et réponse IA de Brave Search, concordants ; notice d'information non lue",
+            "a_verifier": true
+          }
+        },
+        {
+          "id": "bourso-pea",
+          "type": "PEA",
+          "nom": "PEA BoursoBank",
+          "courtage": [
+            {
+              "profil": "Découverte",
+              "paliers": [
+                {
+                  "jusqu_a": "500",
+                  "fixe": "1.99",
+                  "pourcentage": "0",
+                  "minimum": "0"
+                },
+                {
+                  "jusqu_a": null,
+                  "fixe": "0",
+                  "pourcentage": "0.0060",
+                  "minimum": "0"
+                }
+              ],
+              "conditions": [
+                "Au moins 1 transaction par mois"
+              ],
+              "frais_inactivite_mensuel": null,
+              "a_verifier": false
+            },
+            {
+              "profil": "Trader",
+              "paliers": [
+                {
+                  "jusqu_a": "7500",
+                  "fixe": "16.65",
+                  "pourcentage": "0",
+                  "minimum": "0"
+                },
+                {
+                  "jusqu_a": null,
+                  "fixe": "0",
+                  "pourcentage": "0.0022",
+                  "minimum": "0"
+                }
+              ],
+              "conditions": [
+                "5,95 €/mois par compte sans ordre exécuté dans le mois"
+              ],
+              "frais_inactivite_mensuel": "5.95",
+              "a_verifier": false
+            },
+            {
+              "profil": "Ultimate Trader",
+              "paliers": [
+                {
+                  "jusqu_a": "10000",
+                  "fixe": "9.90",
+                  "pourcentage": "0",
+                  "minimum": "0"
+                },
+                {
+                  "jusqu_a": null,
+                  "fixe": "0",
+                  "pourcentage": "0.0012",
+                  "minimum": "0"
+                }
+              ],
+              "conditions": [
+                "Au moins 30 transactions par mois, sinon forfait de 119 €/mois (hors premier mois)",
+                "Adhésion minimum de 3 mois"
+              ],
+              "frais_inactivite_mensuel": null,
+              "a_verifier": false
+            }
+          ],
+          "droits_de_garde": "0",
+          "source_url": "https://www.boursorama.com/content/brochure_tarifaire/boursorama_bt.pdf",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "profils_non_disponibles_pea": [
+            "Classic (CTO uniquement : 5,50 € jusqu'à 1 000 €, puis 0,48 %, minimum 8,95 €)"
+          ],
+          "offres": [
+            {
+              "nom": "boursomarkets — ETF Amundi",
+              "emetteur": "Amundi",
+              "depuis": "2026-10-05",
+              "description": "0 € de courtage à l'achat sur la sélection d'ETF Amundi de boursomarkets (environ 275 ETF, dont 75 éligibles au PEA, hors ETF à effet de levier) ; revente au tarif normal du profil",
+              "achat_seulement": true,
+              "montant_min": "500",
+              "montant_max": null,
+              "historique": "Partenaire iShares jusqu'à fin septembre 2026 ; les ETF iShares restent achetables au courtage normal",
+              "source_url": "https://www.boursorama.com/bourse/etf-partenaires/amundi",
+              "a_verifier": false
+            }
+          ],
+          "marches": "Euronext Paris, Amsterdam, Bruxelles",
+          "autres_marches": {
+            "bourses_europeennes": "11,95 € jusqu'à 4 000 €, puis 0,30 % ; achat minimum 2 500 € en PEA"
+          },
+          "montants_minimums_achat_pea": {
+            "actions_euronext": "100",
+            "etf": "100",
+            "opcvm": "100",
+            "opcvm_boursomarkets": "500"
+          },
+          "tenue_de_compte": "0",
+          "frais_divers": {
+            "ouverture": "0",
+            "cloture_pea": "0",
+            "transfert_titres_par_ligne": "15",
+            "transfert_max": "150",
+            "changement_offre": "119",
+            "changement_offre_gratuit_par_an": 1
+          },
+          "source": "Brochure tarifaire BoursoBank, tarifs applicables au 18/11/2026 (pied de page « BT_ 15/04/2026 »)"
+        }
+      ]
+    },
+    {
+      "id": "fortuneo",
+      "nom": "Fortuneo",
+      "type": "banque",
+      "couleur": "#16A34A",
+      "produits": [
+        {
+          "id": "fortuneo-livret-a",
+          "type": "LIVRET_A",
+          "nom": "Livret A",
+          "source_url": "https://www.fortuneo.fr/epargne/livret-a",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false
+        },
+        {
+          "id": "fortuneo-ldds",
+          "type": "LDDS",
+          "nom": "LDDS",
+          "source_url": "https://www.fortuneo.fr/",
+          "verifie_le": null,
+          "a_verifier": true
+        },
+        {
+          "id": "fortuneo-vie",
+          "type": "ASSURANCE_VIE",
+          "nom": "Fortuneo Vie",
+          "assureur": "Suravenir",
+          "versement_initial_min": "100",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "rachat": "0",
+            "gestion_fonds_euros": null,
+            "gestion_uc": "0.0075",
+            "gestion_sous_mandat": "0.0085"
+          },
+          "fonds_euros": [
+            {
+              "nom": "Suravenir Rendement 2",
+              "frais_gestion": "0.0060",
+              "rendement_net": {
+                "2025": "0.0210"
+              },
+              "note": "Chaque versement doit comporter au moins 30 % d'UC"
+            },
+            {
+              "nom": "Suravenir Opportunités 2",
+              "frais_gestion_max": "0.03",
+              "garantie_capital": "0.97",
+              "rendement_net": {
+                "2025": "0.0300"
+              },
+              "rendement_selon_part_uc_2025": {
+                "moins_de_30": "0.0300",
+                "30_a_50": "0.0350",
+                "50_a_70": "0.0400",
+                "plus_de_70": "0.0450"
+              },
+              "note": "Accessible à 100 % en gestion libre (contrainte d'UC levée ponctuellement)"
+            }
+          ],
+          "conditions": [
+            "Gestion sous mandat dès 300 €",
+            "Arbitrages par courrier : 28 €"
+          ],
+          "source_url": "https://www.fortuneo.fr/assurance-vie/fonds-euros",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false
+        },
+        {
+          "id": "fortuneo-per",
+          "type": "PER",
+          "nom": "Fortuneo PER",
+          "assureur": "Suravenir",
+          "versement_initial_min": "100",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "sortie": "0",
+            "gestion_fonds_euros": "0.0070",
+            "gestion_uc": "0.0050"
+          },
+          "conditions": [
+            "Personne majeure titulaire d'un compte de dépôt ou espèces Fortuneo"
+          ],
+          "source_url": "https://www.fortuneo.fr/per-plan-epargne-retraite",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "nombre_supports": "220+",
+          "modes_de_gestion": [
+            {
+              "nom": "Gestion libre",
+              "frais": {
+                "fonds_euros": "0.0070",
+                "uc": "0.0050"
+              }
+            },
+            {
+              "nom": "Gestion à horizon",
+              "frais": {
+                "fonds_euros": "0.0070",
+                "uc": "0.0070"
+              },
+              "note": "Gestion à horizon = gestion libre + 0,2 % sur les UC ; profil par défaut « Équilibré horizon retraite »"
+            }
+          ],
+          "fonds_euros": [
+            {
+              "nom": "Fonds Euros Retraite",
+              "rendement_net": {
+                "2025": "0.0320"
+              },
+              "note": "Accessible à 100 %, sans condition d'UC"
+            }
+          ],
+          "versement_complementaire_min": "100",
+          "versement_programme_min": "50"
+        },
+        {
+          "id": "fortuneo-pea",
+          "type": "PEA",
+          "nom": "PEA Fortuneo",
+          "courtage": [
+            {
+              "profil": "Starter",
+              "paliers": [
+                {
+                  "jusqu_a": null,
+                  "fixe": "0",
+                  "pourcentage": "0.0035",
+                  "minimum": "0"
+                }
+              ],
+              "premier_ordre_mensuel_gratuit_jusqu_a": "500",
+              "a_verifier": false
+            },
+            {
+              "profil": "Progress",
+              "paliers": [
+                {
+                  "jusqu_a": "3000",
+                  "fixe": "4.90",
+                  "pourcentage": "0",
+                  "minimum": "0"
+                },
+                {
+                  "jusqu_a": null,
+                  "fixe": "0",
+                  "pourcentage": "0.0015",
+                  "minimum": "0"
+                }
+              ],
+              "premier_ordre_mensuel_gratuit_jusqu_a": null,
+              "a_verifier": false
+            },
+            {
+              "profil": "Trader pro",
+              "paliers": [
+                {
+                  "jusqu_a": "10000",
+                  "fixe": "9.50",
+                  "pourcentage": "0",
+                  "minimum": "0"
+                },
+                {
+                  "jusqu_a": null,
+                  "fixe": "0",
+                  "pourcentage": "0.0010",
+                  "minimum": "0"
+                }
+              ],
+              "premier_ordre_mensuel_gratuit_jusqu_a": null,
+              "a_verifier": false
+            }
+          ],
+          "droits_de_garde": "0",
+          "source_url": "Brochure « Tarif Particuliers Fortuneo », conditions tarifaires au 6 août 2026",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "marches": "Euronext Paris, Bruxelles, Amsterdam et Equiduct",
+          "autres_marches": {
+            "allemagne_royaume_uni_suisse": "0,20 % min. 20 € + 30 € de frais de brokers étrangers, dans la limite du maximum légal PEA ; achat minimum 400 € en PEA"
+          },
+          "tenue_de_compte": "0",
+          "frais_divers": {
+            "ordre_par_telephone_starter": "7.18",
+            "ordre_par_telephone_progress_trader_pro": "3.59",
+            "cloture_pea": "85",
+            "transfert_pea_sortant": "0",
+            "transfert_titres_par_ligne": "15",
+            "transfert_titres_nominatif_par_ligne": "50"
+          },
+          "offres": [
+            {
+              "nom": "ETF Amundi à 0 €",
+              "emetteur": "Amundi",
+              "du": "2026-09-01",
+              "au": "2026-12-31",
+              "description": "Chaque mois, courtage gratuit sur tous les ordres d'achat entre 500 € et 100 000 € sur une sélection d'ETF Amundi",
+              "achat_seulement": true,
+              "montant_min": "500",
+              "montant_max": "100000",
+              "source_url": "https://www.fortuneo.fr/bourse/tarifs",
+              "a_verifier": false
+            }
+          ],
+          "conditions": [
+            "Un seul tarif au choix par compte",
+            "Anciens tarifs maintenus pour les clients existants jusqu'à changement",
+            "Encours minimum de 100 € à l'ouverture"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "linxea",
+      "nom": "Linxea",
+      "type": "courtier",
+      "couleur": "#D97706",
+      "produits": [
+        {
+          "id": "linxea-spirit-2",
+          "type": "ASSURANCE_VIE",
+          "nom": "Linxea Spirit 2",
+          "assureur": "Spirica",
+          "versement_initial_min": "500",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "gestion_fonds_euros": null,
+            "gestion_fonds_euros_max": "0.02",
+            "gestion_uc": "0.0050",
+            "gestion_pilotee_supplement": "0.0020"
+          },
+          "fonds_euros": [
+            {
+              "nom": "Fonds euro Objectif Climat",
+              "rendement_net": {
+                "2025": "0.0326"
+              }
+            },
+            {
+              "nom": "Fonds euro Nouvelle Génération",
+              "rendement_net": {
+                "2025": "0.0308"
+              }
+            }
+          ],
+          "conditions": [
+            "Supplément gestion pilotée hors Yomoni",
+            "Frais à 0 % hors SCPI, SCI, actions et ETF (note de bas de page Linxea)"
+          ],
+          "source_url": "https://www.linxea.com/assurance-vie/comparateur-de-contrat/",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "versement_programme_min": "100",
+          "versement_complementaire_min": "100",
+          "nombre_supports": "1100+",
+          "nombre_etf": "200+"
+        },
+        {
+          "id": "linxea-avenir-2",
+          "type": "ASSURANCE_VIE",
+          "nom": "Linxea Avenir 2+",
+          "assureur": "Suravenir",
+          "versement_initial_min": "100",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "gestion_fonds_euros": null,
+            "gestion_fonds_euros_max": "0.03",
+            "gestion_uc": "0.0060",
+            "gestion_pilotee_supplement": "0.0020"
+          },
+          "fonds_euros": [
+            {
+              "nom": "Suravenir Opportunités 2",
+              "rendement_net": {
+                "2025": "0.0300"
+              }
+            },
+            {
+              "nom": "Suravenir Rendement 2",
+              "rendement_net": {
+                "2025": "0.0210"
+              }
+            }
+          ],
+          "conditions": [
+            "30 % minimum en UC non garanties pour accéder à Suravenir Rendement 2",
+            "Frais à 0 % hors SCPI, SCI, actions et ETF (note de bas de page Linxea)"
+          ],
+          "source_url": "https://www.linxea.com/assurance-vie/comparateur-de-contrat/",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "versement_programme_min": "50",
+          "versement_complementaire_min": "100",
+          "nombre_supports": "750+",
+          "nombre_etf": "120"
+        },
+        {
+          "id": "linxea-vie",
+          "type": "ASSURANCE_VIE",
+          "nom": "Linxea Vie",
+          "assureur": "Generali Vie",
+          "versement_initial_min": "300",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "gestion_fonds_euros": "0.0075",
+            "gestion_fonds_euros_max": null,
+            "gestion_uc": "0.0060",
+            "gestion_pilotee_supplement": "0.0020"
+          },
+          "fonds_euros": [
+            {
+              "nom": "Netissima",
+              "rendement_net": {
+                "2025": "0.0300"
+              }
+            }
+          ],
+          "conditions": [
+            "Frais à 0 % hors SCPI, SCI, actions et ETF (note de bas de page Linxea)"
+          ],
+          "source_url": "https://www.linxea.com/assurance-vie/comparateur-de-contrat/",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "versement_programme_min": "50",
+          "versement_complementaire_min": "300",
+          "nombre_supports": "850+",
+          "nombre_etf": "140"
+        },
+        {
+          "id": "linxea-zen",
+          "type": "ASSURANCE_VIE",
+          "nom": "Linxea Zen",
+          "assureur": "Apicil",
+          "versement_initial_min": "500",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "gestion_fonds_euros": "0.0060",
+            "gestion_fonds_euros_max": null,
+            "gestion_uc": "0.0060",
+            "gestion_pilotee_supplement": "0.0020"
+          },
+          "fonds_euros": [
+            {
+              "nom": "Apicil Euroflex",
+              "rendement_net": {
+                "2025": "0.0325"
+              }
+            },
+            {
+              "nom": "Apicil Euro Garanti",
+              "rendement_net": {
+                "2025": "0.0250"
+              }
+            }
+          ],
+          "conditions": [
+            "Minimum initial : 500 € dans le tableau comparatif, 300 € sur la fiche produit — à confirmer",
+            "Frais à 0 % hors SCPI, SCI, actions et ETF (note de bas de page Linxea)"
+          ],
+          "source_url": "https://www.linxea.com/assurance-vie/comparateur-de-contrat/",
+          "verifie_le": "2026-11-23",
+          "a_verifier": true,
+          "versement_programme_min": "50",
+          "versement_complementaire_min": "300",
+          "nombre_supports": "400+",
+          "nombre_etf": "50+"
+        },
+        {
+          "id": "linxea-spirit-per",
+          "type": "PER",
+          "nom": "Linxea Spirit PER",
+          "assureur": "Spirica",
+          "versement_initial_min": "500",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "gestion_fonds_euros": null,
+            "gestion_uc": "0.0050",
+            "rente": "0",
+            "gestion_fonds_euros_max": "0.02"
+          },
+          "conditions": [],
+          "source_url": "https://www.linxea.com/retraite/linxea-spirit-per/",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "fonds_euros": [
+            {
+              "nom": "Fonds euro Nouvelle Génération",
+              "rendement_net": {
+                "2025": "0.0308"
+              },
+              "garantie_capital": "0.98"
+            }
+          ]
+        },
+        {
+          "id": "linxea-suravenir-per",
+          "type": "PER",
+          "nom": "Suravenir PER",
+          "assureur": "Suravenir",
+          "versement_initial_min": "1000",
+          "frais": {
+            "entree": null,
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "gestion_fonds_euros": "0.0080",
+            "gestion_uc": "0.0060",
+            "rente": "0"
+          },
+          "conditions": [
+            "Plus de 400 supports"
+          ],
+          "source_url": "https://www.linxea.com/per/suravenir-per/",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "fonds_euros": [
+            {
+              "nom": "Fonds euros Suravenir",
+              "rendement_net": {
+                "2025": "0.0300"
+              }
+            }
+          ],
+          "versement_complementaire_min": "1000",
+          "versement_programme_min": "100"
+        },
+        {
+          "id": "linxea-per-apicil",
+          "type": "PER",
+          "nom": "Linxea Apicil PER",
+          "assureur": "APICIL Épargne Retraite (contrat Intencial Liberalys Retraite)",
+          "versement_initial_min": "1000",
+          "frais": {
+            "entree": "0",
+            "versement": "0",
+            "arbitrage_en_ligne": "0",
+            "arbitrage_vers_fonds_euros": "1 gratuit par an, puis 15 € + 0,10 %",
+            "gestion_fonds_euros": "0.0085",
+            "gestion_uc": "0.0060",
+            "gestion_horizon_supplement": "0",
+            "transaction_etf": "0.0015",
+            "adhesion_association": "8",
+            "transfert_sortant_moins_5_ans": "0.01"
+          },
+          "conditions": [
+            "Minimum réduit à 500 € en cas de transfert entrant ou de versements programmés en gestion libre",
+            "Fonds euros accessible jusqu'à 100 %, sans limite de montant",
+            "Frais à 0 % hors SCPI, SCI, ETF et FCPR"
+          ],
+          "source_url": "https://www.linxea.com/per/linxea-per/",
+          "verifie_le": "2026-11-23",
+          "a_verifier": false,
+          "versement_initial_min_reduit": "500",
+          "versement_complementaire_min": "150",
+          "versement_programme_min": "50",
+          "fonds_euros": [
+            {
+              "nom": "Apicil Euro Garanti",
+              "rendement_net": {
+                "2025": "0.0145"
+              }
+            }
+          ],
+          "nombre_supports": "400+"
+        }
+      ]
+    }
+  ],
+  "etf": [
+    {
+      "nom": "Amundi PEA Monde",
+      "mnemo": "DCAM",
+      "isin": "FR001400U5Q4",
+      "indice": "MSCI World",
+      "eligible_pea": true,
+      "ter": "0.0020",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": false
+    },
+    {
+      "nom": "iShares MSCI World Swap PEA",
+      "mnemo": "WPEA",
+      "isin": "IE0002XZSHO1",
+      "indice": "MSCI World",
+      "eligible_pea": true,
+      "ter": "0.0020",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": true,
+      "note": "Sources divergentes : 0,25 % (2025) et 0,20 % (2026) ; baisse probable à vérifier sur le DIC"
+    },
+    {
+      "nom": "Amundi PEA Global (MSCI ACWI) UCITS ETF Acc",
+      "mnemo": null,
+      "isin": "FR0014017NX3",
+      "indice": "MSCI ACWI (pays développés et émergents)",
+      "eligible_pea": true,
+      "ter": null,
+      "source": "Liste Freetrade Amundi de Fortuneo",
+      "a_verifier": true,
+      "note": "Monde + émergents en un seul ETF éligible PEA : candidat naturel pour la stratégie « un seul ETF »"
+    },
+    {
+      "nom": "SPDR MSCI World",
+      "mnemo": "SWRD",
+      "isin": "IE00BFY0GT14",
+      "indice": "MSCI World",
+      "eligible_pea": false,
+      "ter": null,
+      "source": "Tableau utilisateur (Google Sheets) du 23/11/2026",
+      "a_verifier": true
+    },
+    {
+      "nom": "iShares Core MSCI World",
+      "mnemo": "IWDA",
+      "isin": "IE00B4L5Y983",
+      "indice": "MSCI World",
+      "eligible_pea": false,
+      "ter": "0.0020",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": false
+    },
+    {
+      "nom": "Amundi MSCI World Swap II UCITS ETF Dist",
+      "mnemo": "WLD",
+      "isin": "FR0010315770",
+      "indice": "MSCI World",
+      "eligible_pea": false,
+      "ter": "0.0030",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": true,
+      "note": "Classe distribuante ; non éligible PEA selon la liste Fortuneo"
+    },
+    {
+      "nom": "BNP Paribas Easy S&P 500",
+      "mnemo": "ESE",
+      "isin": "FR0011550185",
+      "indice": "S&P 500",
+      "eligible_pea": true,
+      "ter": "0.0014",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": true,
+      "note": "Sources divergentes : 0,12 % à 0,15 % ; justETF indique 0,14 %"
+    },
+    {
+      "nom": "Amundi PEA S&P 500",
+      "mnemo": "PSP5",
+      "isin": "FR0011871128",
+      "indice": "S&P 500",
+      "eligible_pea": true,
+      "ter": "0.0012",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": true,
+      "note": "Sources entre 0,11 % et 0,15 % ; 0,12 % le plus récent"
+    },
+    {
+      "nom": "Amundi S&P 500 II",
+      "mnemo": "SP5C",
+      "isin": "LU1135865084",
+      "indice": "S&P 500",
+      "eligible_pea": false,
+      "ter": null,
+      "source": "Tableau utilisateur (Google Sheets) du 23/11/2026",
+      "a_verifier": true
+    },
+    {
+      "nom": "Amundi PEA Nasdaq-100",
+      "mnemo": "PUST",
+      "isin": "FR0011871110",
+      "indice": "Nasdaq-100",
+      "eligible_pea": true,
+      "ter": "0.0030",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": false
+    },
+    {
+      "nom": "Amundi Core Nasdaq-100 Swap UCITS ETF Acc",
+      "mnemo": "UST",
+      "isin": "LU1829221024",
+      "indice": "Nasdaq-100",
+      "eligible_pea": false,
+      "ter": "0.0022",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": false,
+      "note": "Renommé Amundi Core Nasdaq-100 Swap UCITS ETF"
+    },
+    {
+      "nom": "iShares NASDAQ 100",
+      "mnemo": "CNDX",
+      "isin": "IE00B53SZB19",
+      "indice": "Nasdaq-100",
+      "eligible_pea": false,
+      "ter": "0.0030",
+      "source": "justETF, émetteurs et comparateurs, relevé du 23/11/2026",
+      "a_verifier": false
+    },
+    {
+      "nom": "Amundi Nasdaq-100 Daily (2x) Long",
+      "mnemo": "LQQ",
+      "isin": "FR0010342592",
+      "indice": "Nasdaq-100 levier x2",
+      "eligible_pea": true,
+      "ter": null,
+      "exclu_des_strategies": true,
+      "avertissement": "ETF à effet de levier quotidien : risque très élevé, inadapté à une stratégie passive",
+      "source": "Tableau utilisateur (Google Sheets) du 23/11/2026",
+      "a_verifier": true
+    }
+  ],
+  "reglementaire": {
+    "pea_plafond_courtage": {
+      "en_ligne": "0.005",
+      "telephone": "0.012",
+      "transfert_max": "150",
+      "source": "Brochure « Tarif Particuliers Fortuneo », conditions tarifaires au 6 août 2026"
+    }
+  }
+}

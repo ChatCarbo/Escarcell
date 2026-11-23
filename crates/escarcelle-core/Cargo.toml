@@ -1,0 +1,11 @@
+[package]
+name = "escarcelle-core"
+description = "Règles de calcul d'Escarcelle : livrets réglementés (quinzaines), impôt sur le revenu et TMI. Sans E/S, sans dépendance."
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]

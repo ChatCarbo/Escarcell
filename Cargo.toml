@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = ["crates/escarcelle-core", "crates/escarcelle-quotes"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["ChatCarbo"]
+license = "GPL-3.0-or-later"
+repository = "https://github.com/ChatCarbo/escarcelle"
+rust-version = "1.75"
