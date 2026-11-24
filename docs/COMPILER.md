@@ -3,7 +3,7 @@
 ## 1. Le cœur de calcul (aucune connexion nécessaire)
 
 ```sh
-cargo test                                            # 59 tests
+cargo test                                               # 94 tests
 cargo run -p escarcelle-core --example comparer_per      # comparaison des 5 PER
 ```
 

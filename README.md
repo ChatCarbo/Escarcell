@@ -58,11 +58,12 @@ docs/                  Documentation
 ## Développement
 
 ```sh
-cargo test                 # cœur de calcul : 76 tests, sans réseau
-cd app && npm install && npm run tauri dev
+cargo test                       # cœur de calcul : 94 tests, sans réseau
+cd app/src-tauri && cargo test   # application : 8 tests (base, cours, catalogue, versions)
+cd .. && npm install && npm run tauri dev
 ```
 
-Principes : montants en centimes, aucun flottant pour l'argent, chaque règle couverte par un test.
+Principes : montants en centimes, aucun flottant pour l'argent, chaque règle couverte par un test (102 au total).
 
 ## Avertissement
 

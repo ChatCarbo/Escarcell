@@ -361,7 +361,7 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 ### 8.5 Qualité
 
 - `cargo test` à la racine : 94 tests du cœur de calcul (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes et fiscalité PEA/CTO, impôt, dons, PEA, PER, courtage, comparateur, cours), dont des cas officiels (service-public.fr, BOFiP, brochures Fortuneo et BoursoBank).
-- `cargo test` dans `app/` : lecture du catalogue, base SQLite (lignes, dividendes, événements), sauvegarde et restauration, reconnaissance des ISIN, dates, numéros de version.
+- `cargo test` dans `app/src-tauri` : 8 tests — lecture du catalogue, base SQLite (lignes, dividendes, événements), sauvegarde et restauration, reconnaissance des ISIN, dates, numéros de version.
 - À vérifier sur relevés réels : dividende net d'une action étrangère dans le PEA et dans le CTO.
 - À faire avant publication : comparer les intérêts calculés avec un relevé de livret réel.
 
