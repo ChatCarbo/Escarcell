@@ -5,19 +5,22 @@
 <h1 align="center">Escarcelle</h1>
 
 <p align="center">
-  <strong>Logiciel libre, gratuit et local pour suivre ses livrets réglementés et son PEA.</strong><br>
+  <strong>Logiciel libre, gratuit et local pour suivre ses livrets réglementés, son PEA et son compte-titres.</strong><br>
   Vos données restent sur votre ordinateur : pas de compte, pas de serveur, pas de connexion à votre banque.
 </p>
 
-> Version 0.1 en test.
+> Version 0.2 en test.
 
 ## Ce que fait Escarcelle
 
 - **Livrets réglementés** (Livret A, LDDS, LEP) : virements, soldes, plafonds, intérêts calculés par quinzaines, et conseils pour verser et retirer au bon moment, avec une frise colorée.
-- **PEA** : recherche d'actions et d'ETF européens, saisie des lignes (quantité, PRU), cours automatiques, plus ou moins-values.
-- **Courbes et analyse technique** : moyennes mobiles, bandes de Bollinger, RSI, MACD, supports et résistances, signaux de rebond ou de cassure expliqués en clair.
-- **Tableau de bord** avec répartition de l'épargne.
-- **Sauvegarde, restauration** et effacement des données.
+- **PEA et compte-titres (CTO)** : recherche d'actions et d'ETF européens et, dans le CTO, américains, suisses, britanniques… avec conversion en euros, saisie des lignes (quantité, PRU), cours automatiques, plus ou moins-values, et sur le CTO, plus-value après flat tax.
+- **Dividendes** : dividende annuel, rendement, croissance, prochain détachement estimé, et dividende net après retenue à la source du pays, flat tax et crédit d'impôt selon l'enveloppe.
+- **Courbes et analyse technique** : ligne, chandeliers japonais, barres, Heikin Ashi, en journalier ou hebdomadaire ; volumes, moyennes mobiles, Bollinger, RSI, MACD, supports et résistances ; signaux expliqués en clair (cassures, figures, motifs de chandeliers, structure de tendance, confirmation hebdomadaire).
+- **Alertes** : détachements de dividendes et assemblées générales des 45 prochains jours.
+- **Tableau de bord** avec répartition de l'épargne et dividendes nets annuels.
+- **Exports** en CSV (Excel) et en image PNG.
+- **Sauvegarde, restauration**, effacement des données, et avis de nouvelle version au démarrage.
 
 ## Captures d'écran
 
@@ -28,13 +31,13 @@
 ![Livrets : soldes, plafonds, nouveau virement et frise des quinzaines indiquant quand verser](docs/images/livrets.png)
 
 ### PEA
-![PEA : lignes saisies avec quantité, PRU, cours, plus-value et courbe du titre](docs/images/pea.png)
+![PEA : lignes, plus-values, dividendes bruts et nets, rendement, croissance et fiche du titre](docs/images/pea.png)
+
+### Compte-titres : actions en devises
+![CTO : recherche de NVIDIA coté en dollars, PRU en euros, courbe en dollars avec supports et résistances](docs/images/cto.png)
 
 ### Analyse technique
-![Courbe sur 5 ans avec moyennes mobiles, supports et résistances, ligne du PRU, RSI, MACD et signaux expliqués](docs/images/analyse-technique.png)
-
-### Paramètres
-![Paramètres : sauvegarder, restaurer une sauvegarde, tout effacer](docs/images/parametres.png)
+![Courbe sur 5 ans avec moyennes mobiles, résistances, ligne du PRU, détachements de dividendes, volumes, RSI et MACD](docs/images/analyse-technique.png)
 
 ## Documentation
 
@@ -45,7 +48,7 @@
 ## Structure
 
 ```
-crates/escarcelle-core    Calculs (livrets, analyse technique, PEA, impôt…), sans dépendance
+crates/escarcelle-core    Calculs (livrets, analyse technique, dividendes, fiscalité PEA/CTO…), sans dépendance
 crates/escarcelle-quotes  Chaîne de sources de cours
 app/                   Application de bureau : Tauri v2 (Rust) + Svelte, stockage SQLite
 catalogue/             Frais et conditions des établissements (versions suivantes)

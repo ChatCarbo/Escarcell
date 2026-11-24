@@ -54,6 +54,32 @@ impl Date {
         Self { year: y, month: self.month, day: d }
     }
 
+    /// Date d'un nombre de jours depuis le 1er janvier 1970 (algorithme de H. Hinnant).
+    pub fn depuis_jours_unix(jours: i64) -> Self {
+        let z = jours + 719_468;
+        let era = z.div_euclid(146_097);
+        let doe = z - era * 146_097;
+        let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        let mp = (5 * doy + 2) / 153;
+        let d = (doy - (153 * mp + 2) / 5 + 1) as u8;
+        let m = if mp < 10 { mp + 3 } else { mp - 9 } as u8;
+        let y = (yoe + era * 400 + if m <= 2 { 1 } else { 0 }) as i32;
+        Date { year: y, month: m, day: d }
+    }
+
+    /// Nombre de jours depuis le 1er janvier 1970.
+    pub fn jours_unix(self) -> i64 {
+        let (m, j) = (self.month as i64, self.day as i64);
+        let y = self.year as i64 - if m <= 2 { 1 } else { 0 };
+        let era = y.div_euclid(400);
+        let yoe = y - era * 400;
+        let mp = (m + 9) % 12;
+        let doy = (153 * mp + 2) / 5 + j - 1;
+        let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+        era * 146_097 + doe - 719_468
+    }
+
     pub fn year(self) -> i32 {
         self.year
     }
@@ -95,5 +121,16 @@ mod tests {
         assert!(Date::new(2026, 2, 29).is_err());
         assert!(Date::new(2026, 13, 1).is_err());
         assert_eq!("2026-08-01".parse::<Date>().unwrap(), Date::ymd(2026, 8, 1));
+    }
+
+    #[test]
+    fn jours_unix_aller_retour() {
+        assert_eq!(Date::ymd(1970, 1, 1).jours_unix(), 0);
+        assert_eq!(Date::ymd(2026, 1, 5).jours_unix() * 86_400, 1_767_571_200);
+        assert_eq!(Date::ymd(2024, 2, 29).jours_unix() * 86_400, 1_709_164_800);
+        for j in [-1000, 0, 10_957, 20_000, 20_516] {
+            assert_eq!(Date::depuis_jours_unix(j).jours_unix(), j);
+        }
+        assert_eq!(Date::depuis_jours_unix(20_416), Date::ymd(2025, 11, 24));
     }
 }

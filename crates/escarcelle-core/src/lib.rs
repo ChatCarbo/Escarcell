@@ -6,16 +6,20 @@
 //! - [`rate::Rate`] : taux en millionièmes, calculs entiers exacts ;
 //! - [`livret`] : intérêts du Livret A, LDDS et LEP par quinzaines ;
 //! - [`impot`] : impôt sur le revenu, plafonnement du quotient familial, décote, TMI ;
+//! - [`dividendes`] : dividendes, retenues à la source, fiscalité PEA et CTO ;
+//! - [`analyse`], [`chandeliers`] : indicateurs techniques, motifs et structure de tendance ;
 //! - [`params`] : séries de paramètres réglementaires datés et jeu embarqué.
 //!
 //! Les simulations sont fournies à titre informatif et ne remplacent ni un
 //! conseiller en investissements financiers ni l'administration fiscale.
 
 pub mod analyse;
+pub mod chandeliers;
 pub mod comparateur;
 pub mod conseil_livret;
 pub mod courtage;
 pub mod date;
+pub mod dividendes;
 pub mod dons;
 pub mod impot;
 pub mod livret;

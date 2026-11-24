@@ -204,6 +204,8 @@ pub struct Analyse {
     pub niveaux: Vec<Niveau>,
     pub signaux: Vec<Signal>,
     pub synthese: Tendance,
+    /// Structure de tendance (plus hauts / plus bas) sur le journalier.
+    pub structure: Tendance,
 }
 
 fn pct(x: f64) -> String {
@@ -225,7 +227,7 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
     let mut s = Vec::new();
     let n = c.len();
     if n < 30 {
-        return Analyse { sma20, sma50, sma200, bollinger: bol, rsi: r, macd: m, niveaux: niv, signaux: s, synthese: Tendance::Neutre };
+        return Analyse { sma20, sma50, sma200, bollinger: bol, rsi: r, macd: m, niveaux: niv, signaux: s, synthese: Tendance::Neutre, structure: Tendance::Neutre };
     }
     let dernier = c[n - 1];
 
@@ -335,6 +337,17 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
         }
     }
 
+    // Structure, figures et motifs de chandeliers.
+    let structure = crate::chandeliers::structure(b, 5);
+    s.push(crate::chandeliers::signal_structure(structure));
+    if let Some(x) = crate::chandeliers::confirmation_multi_periodes(b) {
+        s.push(x);
+    }
+    if let Some(x) = crate::chandeliers::double_sommet_ou_fond(b) {
+        s.push(x);
+    }
+    s.extend(crate::chandeliers::motifs(b).into_iter().map(crate::chandeliers::signal_motif));
+
     let haussiers = s.iter().filter(|x| x.sens == Tendance::Haussier).count();
     let baissiers = s.iter().filter(|x| x.sens == Tendance::Baissier).count();
     let synthese = if haussiers >= baissiers + 2 {
@@ -344,7 +357,7 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
     } else {
         Tendance::Neutre
     };
-    Analyse { sma20, sma50, sma200, bollinger: bol, rsi: r, macd: m, niveaux: niv, signaux: s, synthese }
+    Analyse { sma20, sma50, sma200, bollinger: bol, rsi: r, macd: m, niveaux: niv, signaux: s, synthese, structure }
 }
 
 #[cfg(test)]

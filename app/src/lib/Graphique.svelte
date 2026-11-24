@@ -64,7 +64,14 @@
     return res;
   });
 
-  let volMax = $derived(a ? Math.max(...a.points.map((p) => p.volume), 1) : 1);
+  // Échelle des volumes : 98e centile, pour qu'une séance exceptionnelle (ou une donnée aberrante)
+  // n'écrase pas toutes les autres barres ; les barres plus hautes sont écrêtées.
+  let volMax = $derived.by(() => {
+    if (!a) return 1;
+    const v = a.points.map((p) => p.volume).filter((x) => x > 0).sort((x, y) => x - y);
+    return v.length ? Math.max(v[Math.floor((v.length - 1) * 0.98)], 1) : 1;
+  });
+  const hVol = (v) => Math.min(v / volMax, 1) * HV;
 
   // Index de la bougie la plus proche d'un horodatage (dividendes).
   function indexDe(t) {
@@ -274,7 +281,7 @@
         <svg viewBox="0 0 {W} {HV}" class="courbe">
           {#each a.points as p, i}
             <rect x={echelle.x(i) - echelle.pas * 0.35} width={Math.max(echelle.pas * 0.7, 0.8)}
-              y={HV - (p.volume / volMax) * HV} height={(p.volume / volMax) * HV}
+              y={HV - hVol(p.volume)} height={hVol(p.volume)}
               class={p.cloture >= p.ouverture ? 'volume hausse' : 'volume baisse'} />
           {/each}
         </svg>

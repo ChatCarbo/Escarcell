@@ -1,6 +1,6 @@
 # Guide d'utilisation d'Escarcelle
 
-Escarcelle vous aide à suivre vos **livrets réglementés** (Livret A, LDDS, LEP) et votre **PEA**, directement sur votre ordinateur. Vos données ne quittent jamais votre machine : pas de compte à créer, pas de banque à connecter.
+Escarcelle vous aide à suivre vos **livrets réglementés** (Livret A, LDDS, LEP), votre **PEA** et votre **compte-titres (CTO)**, directement sur votre ordinateur. Vos données ne quittent jamais votre machine : pas de compte à créer, pas de banque à connecter.
 
 ---
 
@@ -10,10 +10,11 @@ Escarcelle vous aide à suivre vos **livrets réglementés** (Livret A, LDDS, LE
 2. [Découvrir l'écran](#2-découvrir-lécran)
 3. [Suivre ses livrets](#3-suivre-ses-livrets)
 4. [Choisir le bon jour pour verser ou retirer](#4-choisir-le-bon-jour-pour-verser-ou-retirer)
-5. [Suivre son PEA](#5-suivre-son-pea)
-6. [Lire la courbe et l'analyse technique](#6-lire-la-courbe-et-lanalyse-technique)
-7. [Sauvegarder, restaurer, tout effacer](#7-sauvegarder-restaurer-tout-effacer)
-8. [Questions fréquentes](#8-questions-fréquentes)
+5. [Suivre son PEA et son CTO](#5-suivre-son-pea-et-son-cto)
+6. [Dividendes, impôts et assemblées générales](#6-dividendes-impôts-et-assemblées-générales)
+7. [Lire la courbe et l'analyse technique](#7-lire-la-courbe-et-lanalyse-technique)
+8. [Paramètres : sauvegarde, retenues, nouvelles versions](#8-paramètres--sauvegarde-retenues-nouvelles-versions)
+9. [Questions fréquentes](#9-questions-fréquentes)
 
 ---
 
@@ -21,7 +22,7 @@ Escarcelle vous aide à suivre vos **livrets réglementés** (Livret A, LDDS, LE
 
 ### Avec l'installateur
 
-Lancez `Escarcelle_0.1.0_x64-setup.exe` (ou le `.msi`) et suivez les étapes. Escarcelle apparaît ensuite dans le menu Démarrer.
+Téléchargez `Escarcelle_x.y.z_x64-setup.exe` depuis la page **Releases** du dépôt GitHub, lancez-le et suivez les étapes. Escarcelle apparaît ensuite dans le menu Démarrer.
 
 ### Depuis le code source (Windows)
 
@@ -39,7 +40,7 @@ npm run tauri dev                             # lance Escarcelle
 npm run tauri build                           # crée l'installateur
 ```
 
-La première compilation prend plusieurs minutes. L'installateur est créé dans `app\src-tauri\target\release\bundle\`.
+La première compilation prend plusieurs minutes. L'installateur est créé dans `app\target\release\bundle\nsis\`.
 
 ---
 
@@ -49,10 +50,15 @@ La première compilation prend plusieurs minutes. L'installateur est créé dans
 
 | Menu | À quoi ça sert |
 | :--- | :--- |
-| **Tableau de bord** | Vue d'ensemble : patrimoine suivi, intérêts de l'année, plus-value du PEA, répartition |
+| **Tableau de bord** | Vue d'ensemble : patrimoine suivi, intérêts de l'année, plus-values, dividendes nets, répartition, événements à venir |
 | **Livrets** | Vos virements sur Livret A, LDDS et LEP, et les conseils de dates |
-| **PEA** | Vos lignes d'actions et d'ETF, leurs cours et leurs courbes |
-| **Paramètres** | Sauvegarde, restauration, effacement |
+| **PEA** | Vos lignes d'actions et d'ETF, leurs cours, leurs dividendes et leurs courbes |
+| **CTO** | La même chose pour votre compte-titres, avec la fiscalité du CTO |
+| **Paramètres** (bouton ⚙ en haut à droite) | Sauvegarde, restauration, effacement, retenues à la source, nouvelles versions |
+
+Le numéro de version d'Escarcelle est affiché en bas du menu.
+
+Au démarrage, si une nouvelle version d'Escarcelle est publiée, un bandeau vert vous le signale avec un lien vers la page de téléchargement.
 
 Tous les montants sont en euros, au format français (1 234,56 €). Les gains apparaissent en vert, les pertes en rouge.
 
@@ -123,21 +129,35 @@ Le message indique que ce montant ne rapporte plus depuis le 1er mars, et que si
 
 ---
 
-## 5. Suivre son PEA
+## 5. Suivre son PEA et son CTO
 
-Escarcelle ne vous demande pas l'historique de vos achats : vous saisissez simplement ce que vous détenez, comme sur l'écran de votre banque.
+Les pages **PEA** et **CTO** fonctionnent de la même façon. Escarcelle ne vous demande pas l'historique de vos achats : vous saisissez simplement ce que vous détenez, comme sur l'écran de votre banque.
+
+| | PEA | CTO |
+| :--- | :--- | :--- |
+| Ce qu'on peut y mettre | Sociétés européennes, cotées en euros | Tout : Europe, États-Unis, Suisse, Londres, pays nordiques, Canada, Japon, Hong Kong, Australie |
+| Impôt sur les plus-values | Aucun tant que l'argent reste dans le PEA | Flat tax de 31,4 % à la vente |
+| Impôt sur les dividendes | Aucun (mais la retenue étrangère est perdue) | Flat tax de 31,4 % |
 
 ### Ajouter une ligne
 
 1. Dans **Ajouter une ligne**, tapez le nom, le mnémonique ou le code ISIN du titre : « LVMH », « MC », « FR0000121014 », « MSCI World »…
-2. La liste se remplit pendant que vous tapez. Chaque résultat indique la place de cotation et l'**éligibilité au PEA** :
+2. La liste se remplit pendant que vous tapez. Sur la page PEA, chaque résultat indique l'**éligibilité au PEA** :
    - **probable** : société européenne ;
    - **à vérifier** : ETF ou titre coté en Allemagne ;
    - **non** : société hors d'Europe.
-3. Cliquez sur le bon titre (de préférence celui coté à **Paris**, en tête de liste).
-4. Saisissez la **quantité** et le **PRU** (prix de revient unitaire) tels qu'affichés par votre banque, puis **Ajouter**.
+3. Cliquez sur le bon titre (de préférence celui coté à **Paris**, en tête de liste). Sa courbe s'affiche pour vous aider à le reconnaître.
+4. Saisissez la **quantité** et le **PRU** (prix de revient unitaire) tels qu'affichés par votre banque, puis **Ajouter**. Le PRU de la banque inclut déjà les frais de courtage : rien d'autre à saisir.
 
 > L'éligibilité affichée est indicative. En cas de doute, vérifiez auprès de votre banque avant d'acheter.
+
+### Actions étrangères dans le CTO
+
+Sur la page **CTO**, la recherche propose aussi les places hors zone euro, avec leur devise : tapez « NVIDIA » et choisissez **NVDA · États-Unis · USD** plutôt que la cotation de Francfort.
+
+- Saisissez le **PRU en euros**, change et frais compris, comme l'affiche votre banque : c'est ce prix qui compte pour l'impôt français.
+- Le cours s'affiche dans sa devise (par exemple 188,12 $), avec sa contre-valeur en euros au taux du jour en dessous.
+- Valeur, plus-value et dividendes sont calculés en euros. Ils bougent donc aussi avec le taux de change.
 
 ### Le tableau des lignes
 
@@ -147,30 +167,85 @@ Escarcelle ne vous demande pas l'historique de vos achats : vous saisissez simpl
 | Cours | Dernier cours connu, avec son heure |
 | Valeur | Quantité × cours |
 | +/− value | Valeur − (quantité × PRU), en euros et en % |
+| 1 an | Évolution du cours sur les 12 derniers mois |
+| Rend. | Rendement du dividende : dividende annuel ÷ cours |
 
-En haut : la valeur totale, le montant investi, la plus ou moins-value et la performance globale. En bas : un camembert de répartition de vos lignes.
+En haut, deux rangées de chiffres :
+- valeur, montant investi, plus ou moins-value ; sur le CTO, la **plus-value après flat tax**, c'est-à-dire ce que vous garderiez en vendant tout aujourd'hui ;
+- dividendes annuels bruts et nets, rendement et croissance moyenne du dividende.
+
+En bas : un camembert de répartition de vos lignes.
 
 ### Les cours
 
-- Ils se mettent à jour à l'ouverture de la page, puis **toutes les 5 minutes** tant que la page reste ouverte. Le bouton **Actualiser les cours** force une mise à jour.
+- Ils se mettent à jour à l'ouverture de la page, puis **toutes les 5 minutes** tant que la page reste ouverte. Le bouton **Actualiser les cours** force une mise à jour. Les dividendes sont récupérés en même temps, une fois par jour.
 - Ils viennent de Yahoo Finance et ont en général **environ 15 minutes de retard**.
 - Si un titre n'a pas de cours, cliquez sur **Cours** (ou **saisir**) pour l'entrer vous-même.
 
 ### Modifier après un achat ou une vente
 
-Cliquez sur **Modifier**, mettez à jour la quantité et le PRU affichés par votre banque, puis **Enregistrer**. Pour une ligne vendue entièrement, cliquez sur ✕ puis **Confirmer ?**.
+Cliquez sur **Modifier**, mettez à jour la quantité et le PRU affichés par votre banque, puis **Enregistrer**. Le menu **Pays** permet de corriger le pays de la société s'il est mal deviné (voir ci-dessous). Pour une ligne vendue entièrement, cliquez sur ✕ puis **Confirmer ?**.
 
 ---
 
-## 6. Lire la courbe et l'analyse technique
+## 6. Dividendes, impôts et assemblées générales
+
+Cliquez sur le **nom d'une ligne** : sa fiche s'ouvre au-dessus de la courbe.
+
+### Les dividendes
+
+| Donnée | Signification |
+| :--- | :--- |
+| Dividende annuel / action | Total versé ces 12 derniers mois, et rythme (annuel, semestriel, trimestriel) |
+| Rendement | Dividende annuel ÷ cours actuel |
+| Croissance | Hausse moyenne du dividende par an ces dernières années |
+| Prochain détachement | Date estimée d'après celle de l'an dernier : à confirmer sur le site de la société |
+
+### Du brut au net
+
+La fiche détaille ce que vous touchez vraiment sur un an :
+
+1. **Dividende brut** : dividende par action × quantité.
+2. **Retenue à la source** : prélevée par le pays de la société (0 % en France, 26,375 % en Allemagne, 15 % aux Pays-Bas…). Le pays est deviné à partir de l'ISIN ou de la place de cotation ; corrigez-le avec **Modifier** si besoin (par exemple Stellantis ou Airbus, cotées à Paris mais néerlandaises).
+3. **Sur le CTO seulement** : impôt de 12,8 %, diminué d'un **crédit d'impôt** égal à la retenue étrangère (au plus 12,8 %), puis prélèvements sociaux de 18,6 %.
+4. **Dividende net encaissé**.
+
+| 100 € de dividende brut | PEA | CTO |
+| :--- | :--- | :--- |
+| Société française | 100,00 € | 68,60 € |
+| Société néerlandaise (15 %) | 85,00 € | 66,40 € |
+| Société allemande (26,375 %) | 73,62 € | 55,02 € |
+
+> Dans un PEA, la retenue étrangère est **perdue** : il n'y a pas d'impôt français sur lequel la déduire. C'est pourquoi les actions françaises sont souvent privilégiées dans un PEA pour toucher des dividendes.
+
+### Les assemblées générales
+
+Sur la fiche d'une ligne, saisissez la **date de l'AG** (et une note si vous voulez : lieu, vote par correspondance…), puis **Ajouter l'AG**. Les sociétés françaises publient cette date au **BALO** (sur journal-officiel.gouv.fr) et dans l'espace « Actionnaires » de leur site, en général au printemps.
+
+### Le bloc « À venir » du tableau de bord
+
+Il liste, pour les 45 prochains jours, les **détachements de dividendes estimés** et les **assemblées générales** que vous avez saisies.
+
+---
+
+## 7. Lire la courbe et l'analyse technique
 
 Cliquez sur le **nom d'une ligne** (ou sur un résultat de recherche) pour ouvrir sa courbe.
 
 ### La courbe
 
 - Choisissez la période : 3 mois, 6 mois, 1 an, 2 ans ou 5 ans.
+- Choisissez **Jour** ou **Semaine** : en hebdomadaire, chaque bougie résume une semaine ; c'est la vue des investisseurs à long terme, avec moins de « bruit ».
+- Choisissez la représentation :
+  - **Ligne** : les cours de clôture, le plus simple ;
+  - **Chandeliers** : pour chaque séance, un corps entre l'ouverture et la clôture (vert si hausse, rouge si baisse) et des mèches jusqu'au plus haut et au plus bas ;
+  - **Barres** : les mêmes informations, en traits (ouverture à gauche, clôture à droite) ;
+  - **Heikin Ashi** : des chandeliers lissés, où les tendances apparaissent plus nettement (une suite de bougies vertes = hausse).
 - La ligne **orange pointillée** est votre PRU : au-dessus, vous êtes gagnant.
-- Passez la souris sur la courbe pour voir la date, le cours et le RSI.
+- Les pastilles violettes **D** marquent les détachements de dividendes (le cours baisse mécaniquement ce jour-là du montant du dividende).
+- Sous la courbe, les **volumes** : le nombre de titres échangés. Une hausse accompagnée de volumes en hausse est plus solide. Une séance exceptionnelle dépasse le haut de la zone : sa barre est coupée pour garder les autres lisibles.
+- **Exporter en image** enregistre la courbe, les volumes, le RSI et le MACD dans un fichier PNG.
+- Passez la souris sur la courbe pour voir la date, le cours, le RSI et, en bougies, l'ouverture, le plus haut et le plus bas.
 
 ### Les indicateurs, en clair
 
@@ -196,6 +271,12 @@ Sous les graphiques, Escarcelle liste les signaux détectés, chacun avec son ex
 | **Croisement doré / de la mort** | La moyenne 50 jours passe au-dessus / en dessous de la 200 jours. |
 | **Surachat / survente** | Le titre a beaucoup monté / baissé récemment. |
 | **Compression des bandes** | Un mouvement fort se prépare, sans indication de sens. |
+| **Plus hauts et plus bas croissants / décroissants** | La définition même d'une tendance haussière / baissière. Sinon : marché sans direction (range), le cours oscille entre support et résistance. |
+| **Tendance confirmée en hebdomadaire** | La tendance des derniers jours se voit aussi en semaines : signal plus fiable. « En désaccord » appelle à la prudence. |
+| **Double sommet / double fond** | Le cours bute deux fois au même niveau : possible retournement, confirmé quand il franchit le creux (ou le sommet) entre les deux. |
+| **Doji** | Ouverture et clôture presque égales : le marché hésite. |
+| **Marteau / étoile filante** | Longue mèche après une baisse (une hausse) : possible retournement. |
+| **Avalement haussier / baissier** | La bougie du jour « avale » celle de la veille : les acheteurs (vendeurs) reprennent la main. |
 
 Une **synthèse** résume l'ensemble : plutôt à la hausse, plutôt à la baisse, ou pas de tendance nette.
 
@@ -203,9 +284,9 @@ Une **synthèse** résume l'ensemble : plutôt à la hausse, plutôt à la baiss
 
 ---
 
-## 7. Sauvegarder, restaurer, tout effacer
+## 8. Paramètres : sauvegarde, retenues, nouvelles versions
 
-Tout se passe dans **Paramètres**.
+Tout se passe dans **Paramètres**, en haut à droite de la fenêtre.
 
 ### Sauvegarder
 
@@ -217,7 +298,15 @@ Cliquez sur **Choisir une sauvegarde…**, sélectionnez le fichier, puis confir
 
 ### Tout effacer
 
-Tapez **EFFACER** en majuscules, puis cliquez sur **Tout effacer**. Livrets, virements, lignes du PEA et cours enregistrés sont supprimés définitivement. Faites une sauvegarde avant.
+Tapez **EFFACER** en majuscules, puis cliquez sur **Tout effacer**. Livrets, virements, lignes du PEA et du CTO, cours, dividendes, AG et réglages sont supprimés définitivement. Faites une sauvegarde avant.
+
+### Retenues à la source
+
+Le tableau liste le taux retenu par chaque pays sur les dividendes. Les valeurs proposées sont indicatives : si votre relevé montre un autre taux (par exemple parce que votre banque applique le taux réduit d'une convention fiscale), cliquez sur **Modifier**. **Rétablir** revient à la valeur proposée.
+
+### Nouvelles versions
+
+Cochez ou décochez **Vérifier au démarrage**. Le bouton **Vérifier maintenant** interroge GitHub tout de suite. Escarcelle ne fait que lire le numéro de la dernière version : rien n'est envoyé, téléchargé ni installé sans vous.
 
 ### Où sont mes données ?
 
@@ -225,16 +314,31 @@ L'emplacement exact est affiché dans **Paramètres**. Sous Windows : `%APPDATA%
 
 ---
 
-## 8. Questions fréquentes
+### Exporter
+
+- **Exporter en CSV** (tableau de bord, livrets, PEA, CTO) : un fichier qui s'ouvre directement dans Excel ou LibreOffice, avec toutes les colonnes et un total.
+- **Exporter en image** (courbe d'un titre, répartition du tableau de bord) : une image PNG nette, prête à coller dans un document ou un message.
+
+Une fenêtre vous demande où enregistrer le fichier.
+
+---
+
+## 9. Questions fréquentes
 
 **Les intérêts calculés ne correspondent pas exactement à mon relevé.**
 Vérifiez que les dates saisies sont bien les **dates de valeur** du relevé. Si vous avez démarré avec un versement unique égal à votre solde, les intérêts de la première année sont sous-estimés (les quinzaines antérieures ne sont pas connues d'Escarcelle).
 
 **Un titre est introuvable dans la recherche.**
-Essayez son code ISIN, ou son nom en anglais. Escarcelle n'affiche que les titres cotés **en euros** : les actions cotées à Stockholm, Copenhague ou Oslo ne sont pas encore gérées.
+Essayez son code ISIN, ou son nom en anglais. Sur la page **PEA**, seuls les titres cotés **en euros** apparaissent ; les actions américaines, suisses ou britanniques se trouvent sur la page **CTO**.
+
+**Le dividende net ne correspond pas à mon relevé.**
+Vérifiez le **pays** de la société (bouton **Modifier**) et le **taux de retenue** de ce pays dans **Paramètres**. Le dividende annuel est celui des 12 derniers mois : si la société l'a augmenté ou baissé depuis, le prochain sera différent.
+
+**Aucun dividende n'apparaît.**
+La société n'a rien versé ces 12 derniers mois, ou les dividendes n'ont pas encore été récupérés : cliquez sur **Actualiser les cours**. Les ETF capitalisants ne versent pas de dividendes.
 
 **Le cours ne se met pas à jour.**
-Vérifiez votre connexion Internet. La source peut aussi être temporairement indisponible : le message apparaît en haut de la page PEA. En attendant, saisissez le cours à la main avec le bouton **Cours**.
+Vérifiez votre connexion Internet. La source peut aussi être temporairement indisponible : le message apparaît en haut de la page PEA ou CTO. En attendant, saisissez le cours à la main avec le bouton **Cours**.
 
 **Le graphique affiche « historique trop court ».**
 Le titre est coté depuis moins de 30 séances, ou la source ne fournit pas son historique.
