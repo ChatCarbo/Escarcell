@@ -1,11 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod alertes;
 mod catalog;
 mod commands;
 mod cours;
 mod fiscal;
 mod livrets;
-mod pea;
+mod portefeuille;
 mod reglages;
 mod store;
 
@@ -49,18 +50,27 @@ fn main() {
             commands::impot,
             commands::economie_per,
             commands::comparer_per,
-            pea::positions,
-            pea::ajouter_position,
-            pea::modifier_position,
-            pea::supprimer_position,
-            pea::actualiser_cours,
-            pea::saisir_cours,
-            pea::chercher_titres,
-            pea::analyse_titre,
+            portefeuille::positions,
+            portefeuille::ajouter_position,
+            portefeuille::modifier_position,
+            portefeuille::supprimer_position,
+            portefeuille::actualiser_cours,
+            portefeuille::saisir_cours,
+            portefeuille::chercher_titres,
+            portefeuille::analyse_titre,
+            portefeuille::retenues,
+            portefeuille::definir_retenue,
+            alertes::alertes,
+            alertes::evenements,
+            alertes::ajouter_evenement,
+            alertes::supprimer_evenement,
+            alertes::verifier_mise_a_jour,
+            alertes::verification_auto,
             reglages::emplacement_donnees,
             reglages::sauvegarder,
             reglages::restaurer,
             reglages::tout_effacer,
+            reglages::enregistrer_export,
             livrets::livrets,
             livrets::ouvrir_livret,
             livrets::conseil_livret,

@@ -65,6 +65,30 @@ CREATE TABLE positions (
     cree_le        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ALTER TABLE cours ADD COLUMN horodatage INTEGER;
+"#, r#"
+-- CTO, dividendes, alertes.
+ALTER TABLE positions ADD COLUMN pays TEXT;
+CREATE TABLE dividendes (
+    symbole       TEXT NOT NULL,
+    date          TEXT NOT NULL,
+    montant_micro INTEGER NOT NULL,
+    PRIMARY KEY (symbole, date)
+);
+CREATE TABLE infos_titres (
+    symbole           TEXT PRIMARY KEY,
+    cours_un_an_micro INTEGER,
+    maj               INTEGER NOT NULL
+);
+CREATE TABLE evenements (
+    id      INTEGER PRIMARY KEY,
+    symbole TEXT NOT NULL,
+    type    TEXT NOT NULL CHECK (type IN ('AG', 'AUTRE')),
+    date    TEXT NOT NULL,
+    note    TEXT
+);
+"#, r#"
+-- Devise de cotation des lignes (CTO : dollar, franc suisse, livre…). Le PRU reste en euros.
+ALTER TABLE positions ADD COLUMN devise TEXT NOT NULL DEFAULT 'EUR';
 "#];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -105,6 +129,21 @@ pub struct Position {
     pub nom: String,
     pub quantite_micro: i64,
     pub pru_micro: i64,
+    /// Pays de la société (code ISO), pour la retenue à la source sur les dividendes.
+    pub pays: Option<String>,
+    /// Devise de cotation (EUR, USD, CHF, GBP…). Le PRU est toujours en euros.
+    pub devise: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Evenement {
+    pub id: i64,
+    pub symbole: String,
+    /// "AG" ou "AUTRE"
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub date: String,
+    pub note: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -179,7 +218,8 @@ impl Store {
     pub fn effacer_tout(&mut self) -> Result<(), StoreError> {
         let tx = self.conn.transaction()?;
         tx.execute_batch(
-            "DELETE FROM operations; DELETE FROM positions; DELETE FROM comptes; DELETE FROM cours; DELETE FROM parametres;",
+            "DELETE FROM operations; DELETE FROM positions; DELETE FROM comptes; DELETE FROM cours; DELETE FROM parametres; \
+             DELETE FROM dividendes; DELETE FROM infos_titres; DELETE FROM evenements;",
         )?;
         tx.commit()?;
         self.conn.execute_batch("VACUUM;")?;
@@ -294,7 +334,7 @@ impl Store {
 
     pub fn positions(&self, enveloppe: &str) -> Result<Vec<Position>, StoreError> {
         let mut st = self.conn.prepare(
-            "SELECT id, enveloppe, isin, symbole, nom, quantite_micro, pru_micro FROM positions WHERE enveloppe = ?1 ORDER BY nom",
+            "SELECT id, enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise FROM positions WHERE enveloppe = ?1 ORDER BY nom",
         )?;
         let rows = st.query_map([enveloppe], |r| {
             Ok(Position {
@@ -305,6 +345,8 @@ impl Store {
                 nom: r.get(4)?,
                 quantite_micro: r.get(5)?,
                 pru_micro: r.get(6)?,
+                pays: r.get(7)?,
+                devise: r.get(8)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -312,17 +354,79 @@ impl Store {
 
     pub fn ajouter_position(&self, p: &Position) -> Result<i64, StoreError> {
         self.conn.execute(
-            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![p.enveloppe, p.isin, p.symbole, p.nom, p.quantite_micro, p.pru_micro],
+            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![p.enveloppe, p.isin, p.symbole, p.nom, p.quantite_micro, p.pru_micro, p.pays, p.devise],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
 
-    pub fn modifier_position(&self, id: i64, quantite_micro: i64, pru_micro: i64) -> Result<(), StoreError> {
+    pub fn modifier_position(&self, id: i64, quantite_micro: i64, pru_micro: i64, pays: Option<&str>) -> Result<(), StoreError> {
         self.conn.execute(
-            "UPDATE positions SET quantite_micro = ?2, pru_micro = ?3 WHERE id = ?1",
-            params![id, quantite_micro, pru_micro],
+            "UPDATE positions SET quantite_micro = ?2, pru_micro = ?3, pays = ?4 WHERE id = ?1",
+            params![id, quantite_micro, pru_micro, pays],
         )?;
+        Ok(())
+    }
+
+    /// Symboles détenus, toutes enveloppes confondues.
+    pub fn symboles_detenus(&self) -> Result<Vec<String>, StoreError> {
+        let mut st = self.conn.prepare("SELECT DISTINCT symbole FROM positions ORDER BY symbole")?;
+        let rows = st.query_map([], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Remplace l'historique des dividendes d'un titre (date ISO, montant par action en millionièmes).
+    pub fn remplacer_dividendes(&mut self, symbole: &str, versements: &[(String, i64)]) -> Result<(), StoreError> {
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM dividendes WHERE symbole = ?1", [symbole])?;
+        for (date, montant) in versements {
+            tx.execute("INSERT OR REPLACE INTO dividendes (symbole, date, montant_micro) VALUES (?1, ?2, ?3)", params![symbole, date, montant])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn dividendes(&self, symbole: &str) -> Result<Vec<(String, i64)>, StoreError> {
+        let mut st = self.conn.prepare("SELECT date, montant_micro FROM dividendes WHERE symbole = ?1 ORDER BY date")?;
+        let rows = st.query_map([symbole], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn definir_infos_titre(&self, symbole: &str, cours_un_an_micro: Option<i64>, maj: i64) -> Result<(), StoreError> {
+        self.conn.execute(
+            "INSERT INTO infos_titres (symbole, cours_un_an_micro, maj) VALUES (?1, ?2, ?3) \
+             ON CONFLICT(symbole) DO UPDATE SET cours_un_an_micro = excluded.cours_un_an_micro, maj = excluded.maj",
+            params![symbole, cours_un_an_micro, maj],
+        )?;
+        Ok(())
+    }
+
+    /// Cours d'il y a un an et date de mise à jour des informations du titre.
+    pub fn infos_titre(&self, symbole: &str) -> Result<Option<(Option<i64>, i64)>, StoreError> {
+        Ok(self
+            .conn
+            .query_row("SELECT cours_un_an_micro, maj FROM infos_titres WHERE symbole = ?1", [symbole], |r| Ok((r.get(0)?, r.get(1)?)))
+            .optional()?)
+    }
+
+    pub fn evenements(&self) -> Result<Vec<Evenement>, StoreError> {
+        let mut st = self.conn.prepare("SELECT id, symbole, type, date, note FROM evenements ORDER BY date")?;
+        let rows = st.query_map([], |r| {
+            Ok(Evenement { id: r.get(0)?, symbole: r.get(1)?, type_: r.get(2)?, date: r.get(3)?, note: r.get(4)? })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn ajouter_evenement(&self, e: &Evenement) -> Result<i64, StoreError> {
+        self.conn.execute(
+            "INSERT INTO evenements (symbole, type, date, note) VALUES (?1, ?2, ?3, ?4)",
+            params![e.symbole, e.type_, e.date, e.note],
+        )?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    pub fn supprimer_evenement(&self, id: i64) -> Result<(), StoreError> {
+        self.conn.execute("DELETE FROM evenements WHERE id = ?1", [id])?;
         Ok(())
     }
 
@@ -392,10 +496,18 @@ mod tests {
                 nom: "Amundi PEA Monde".into(),
                 quantite_micro: 100_000_000,
                 pru_micro: 5_500_000,
+                pays: None,
+                devise: "EUR".into(),
             })
             .unwrap();
-        s.modifier_position(pid, 150_000_000, 5_600_000).unwrap();
+        s.modifier_position(pid, 150_000_000, 5_600_000, Some("FR")).unwrap();
         assert_eq!(s.positions("PEA").unwrap()[0].quantite_micro, 150_000_000);
+        assert_eq!(s.positions("PEA").unwrap()[0].pays.as_deref(), Some("FR"));
+        let mut s = s;
+        s.remplacer_dividendes("DCAM.PA", &[("2026-05-20".into(), 1_200_000)]).unwrap();
+        assert_eq!(s.dividendes("DCAM.PA").unwrap().len(), 1);
+        s.ajouter_evenement(&Evenement { id: 0, symbole: "DCAM.PA".into(), type_: "AG".into(), date: "2027-05-12".into(), note: None }).unwrap();
+        assert_eq!(s.evenements().unwrap()[0].type_, "AG");
     }
 
     #[test]

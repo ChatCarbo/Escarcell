@@ -1,11 +1,35 @@
 <script>
-  import { api } from './api.js';
+  import { api, symboleDevise } from './api.js';
+  import { exporterImage, nomFichier } from './export.js';
 
-  /** pru : prix de revient (en millionièmes) pour tracer la ligne d'achat, facultatif */
-  let { symbole, nom, pru = null } = $props();
+  /** pru : prix de revient (en millionièmes, dans la devise de cotation) pour tracer la ligne d'achat, facultatif */
+  let { symbole, nom, pru = null, devise = 'EUR' } = $props();
+  const monnaie = $derived(symboleDevise(devise));
+  let racine = $state(null);
+  let messageExport = $state('');
+
+  async function exporter() {
+    messageExport = '';
+    try {
+      const libelle = PERIODES.find(([v]) => v === periode)?.[1] ?? '';
+      const chemin = await exporterImage(
+        nomFichier(`${nom}-${libelle}`),
+        `${nom} (${symbole}) — ${libelle}, ${intervalle === '1wk' ? 'hebdomadaire' : 'journalier'}`,
+        [...racine.querySelectorAll('svg.courbe')],
+        `Escarcelle · cours Yahoo Finance · ${new Date().toLocaleDateString('fr-FR')} · description du passé, pas un conseil en investissement`,
+      );
+      if (chemin) messageExport = `Image enregistrée : ${chemin}`;
+    } catch (e) {
+      messageExport = String(e);
+    }
+  }
 
   const PERIODES = [['3mo', '3 mois'], ['6mo', '6 mois'], ['1y', '1 an'], ['2y', '2 ans'], ['5y', '5 ans']];
   let periode = $state('1y');
+  const STYLES = [['ligne', 'Ligne'], ['chandeliers', 'Chandeliers'], ['barres', 'Barres'], ['heikin', 'Heikin Ashi']];
+  let style = $state('ligne');
+  let intervalle = $state('1d'); // '1d' journalier, '1wk' hebdomadaire
+  const unite = $derived(intervalle === '1wk' ? 'sem.' : 'j');
   let a = $state(null);
   let erreur = $state('');
   let chargement = $state(false);
@@ -13,10 +37,10 @@
   let survol = $state(null);
 
   $effect(() => {
-    const s = symbole, p = periode;
+    const s = symbole, p = periode, iv = intervalle;
     chargement = true;
     erreur = '';
-    api.analyseTitre(s, p)
+    api.analyseTitre(s, p, iv)
       .then((r) => (a = r))
       .catch((e) => { erreur = String(e); a = null; })
       .finally(() => (chargement = false));
@@ -24,6 +48,31 @@
 
   const W = 860, H = 280, D = 64; // largeur, hauteur du graphique de cours, marge droite (axe)
   const HR = 80; // hauteur RSI et MACD
+  const HV = 50; // hauteur des volumes
+
+  // Bougies affichées : réelles, ou lissées (Heikin Ashi : clôture = moyenne OHLC, ouverture = milieu de la précédente).
+  let bougies = $derived.by(() => {
+    if (!a) return [];
+    if (style !== 'heikin') return a.points;
+    const res = [];
+    for (const p of a.points) {
+      const c = (p.ouverture + p.haut + p.bas + p.cloture) / 4;
+      const prec = res.at(-1);
+      const o = prec ? (prec.ouverture + prec.cloture) / 2 : (p.ouverture + p.cloture) / 2;
+      res.push({ ...p, ouverture: o, cloture: c, haut: Math.max(p.haut, o, c), bas: Math.min(p.bas, o, c) });
+    }
+    return res;
+  });
+
+  let volMax = $derived(a ? Math.max(...a.points.map((p) => p.volume), 1) : 1);
+
+  // Index de la bougie la plus proche d'un horodatage (dividendes).
+  function indexDe(t) {
+    if (!a) return -1;
+    let i = a.points.findIndex((p) => p.t >= t);
+    if (i < 0) i = a.points.length - 1;
+    return i;
+  }
   const pruVal = $derived(pru ? pru / 1e6 : null);
 
   let echelle = $derived.by(() => {
@@ -109,26 +158,37 @@
   });
 </script>
 
-<section class="carte graphique">
+<section class="carte graphique" bind:this={racine}>
   <div class="graphique-tete">
     <div>
       <h3>{nom}</h3>
       {#if dernier}
-        <strong class="solde">{fmtPrix(dernier.cloture)} €</strong>
+        <strong class="solde">{fmtPrix(dernier.cloture)} {monnaie}</strong>
         <span class:positif={variation > 0} class:negatif={variation < 0}>{variation > 0 ? '+' : ''}{variation.toFixed(1).replace('.', ',')} % sur la période</span>
       {/if}
     </div>
-    <div class="segments">
-      {#each PERIODES as [v, l]}<button type="button" class:actif={periode === v} onclick={() => (periode = v)}>{l}</button>{/each}
+    <div class="reglages-graphique">
+      <div class="segments">
+        {#each PERIODES as [v, l]}<button type="button" class:actif={periode === v} onclick={() => (periode = v)}>{l}</button>{/each}
+      </div>
+      <div class="segments">
+        <button type="button" class:actif={intervalle === '1d'} onclick={() => (intervalle = '1d')}>Jour</button>
+        <button type="button" class:actif={intervalle === '1wk'} onclick={() => (intervalle = '1wk')}>Semaine</button>
+      </div>
+      <div class="segments">
+        {#each STYLES as [v, l]}<button type="button" class:actif={style === v} onclick={() => (style = v)}>{l}</button>{/each}
+      </div>
+      <button type="button" onclick={exporter} disabled={!a}>Exporter en image</button>
     </div>
   </div>
 
   <div class="couches">
-    <label class="case"><input type="checkbox" bind:checked={couches.moyennes} /> Moyennes 20/50/200 j</label>
+    <label class="case"><input type="checkbox" bind:checked={couches.moyennes} /> Moyennes 20/50/200 {unite}</label>
     <label class="case"><input type="checkbox" bind:checked={couches.bollinger} /> Bandes de Bollinger</label>
     <label class="case"><input type="checkbox" bind:checked={couches.niveaux} /> Supports et résistances</label>
   </div>
 
+  {#if messageExport}<p class="discret petit">{messageExport}</p>{/if}
   {#if erreur}<p class="erreur">{erreur}</p>{/if}
   {#if chargement && !a}<p class="discret">Chargement de l'historique…</p>{/if}
 
@@ -156,26 +216,69 @@
         <path d={chemin('sma50')} class="mm mm50" />
         <path d={chemin('sma200')} class="mm mm200" />
       {/if}
-      <path d={chemin('cloture')} class="cours" />
+      {#if style === 'ligne'}
+        <path d={chemin('cloture')} class="cours" />
+      {:else}
+        {@const largeur = Math.max(echelle.pas * 0.6, 1)}
+        {#each bougies as b, i}
+          {@const x = echelle.x(i)}
+          {@const hausse = b.cloture >= b.ouverture}
+          {#if style === 'barres'}
+            <g class={hausse ? 'barre hausse' : 'barre baisse'}>
+              <line x1={x} x2={x} y1={echelle.y(b.haut)} y2={echelle.y(b.bas)} />
+              <line x1={x - largeur / 2} x2={x} y1={echelle.y(b.ouverture)} y2={echelle.y(b.ouverture)} />
+              <line x1={x} x2={x + largeur / 2} y1={echelle.y(b.cloture)} y2={echelle.y(b.cloture)} />
+            </g>
+          {:else}
+            <g class={hausse ? 'bougie hausse' : 'bougie baisse'}>
+              <line x1={x} x2={x} y1={echelle.y(b.haut)} y2={echelle.y(b.bas)} />
+              <rect x={x - largeur / 2} width={largeur} y={echelle.y(Math.max(b.ouverture, b.cloture))}
+                height={Math.max(Math.abs(echelle.y(b.ouverture) - echelle.y(b.cloture)), 0.8)} />
+            </g>
+          {/if}
+        {/each}
+      {/if}
+      {#each a.dividendes as [t, montant]}
+        {@const i = indexDe(t)}
+        <g class="marque-dividende">
+          <circle cx={echelle.x(i)} cy={H - 8} r="6" />
+          <text x={echelle.x(i)} y={H - 5} text-anchor="middle">D</text>
+          <title>Dividende de {fmtPrix(montant)} {monnaie} détaché le {fmtDate(t)}</title>
+        </g>
+      {/each}
 
       {#if survol !== null}
         {@const p = a.points[survol]}
         <line x1={echelle.x(survol)} x2={echelle.x(survol)} y1="0" y2={H} class="curseur" />
         <circle cx={echelle.x(survol)} cy={echelle.y(p.cloture)} r="3.5" class="point" />
         <g transform="translate({Math.min(echelle.x(survol) + 8, W - D - 150)},8)">
-          <rect width="142" height="44" rx="4" class="bulle" />
+          <rect width="142" height={style !== 'ligne' ? 60 : 44} rx="4" class="bulle" />
           <text x="8" y="17" class="bulle-texte">{fmtDate(p.t)}</text>
-          <text x="8" y="35" class="bulle-texte fort">{fmtPrix(p.cloture)} €{p.rsi !== null ? ` · RSI ${p.rsi.toFixed(0)}` : ''}</text>
+          <text x="8" y="35" class="bulle-texte fort">{fmtPrix(p.cloture)} {monnaie}{p.rsi !== null ? ` · RSI ${p.rsi.toFixed(0)}` : ''}</text>
+          {#if style !== 'ligne'}
+            <text x="8" y="51" class="bulle-texte">O {fmtPrix(p.ouverture)} · H {fmtPrix(p.haut)} · B {fmtPrix(p.bas)}</text>
+          {/if}
         </g>
       {/if}
     </svg>
     {#if couches.moyennes}
       <div class="frise-legende">
-        <span><i class="leg mm20"></i>moyenne 20 j</span><span><i class="leg mm50"></i>50 j</span><span><i class="leg mm200"></i>200 j</span>
+        <span><i class="leg mm20"></i>moyenne 20 {unite}</span><span><i class="leg mm50"></i>50 {unite}</span><span><i class="leg mm200"></i>200 {unite}</span>
+        {#if a.dividendes.length}<span><i class="leg dividende"></i>D : détachement de dividende</span>{/if}
       </div>
     {/if}
 
     <div class="indicateurs">
+      <div>
+        <span class="discret petit">Volumes échangés (une hausse des volumes confirme un mouvement ; une baisse peut annoncer un essoufflement)</span>
+        <svg viewBox="0 0 {W} {HV}" class="courbe">
+          {#each a.points as p, i}
+            <rect x={echelle.x(i) - echelle.pas * 0.35} width={Math.max(echelle.pas * 0.7, 0.8)}
+              y={HV - (p.volume / volMax) * HV} height={(p.volume / volMax) * HV}
+              class={p.cloture >= p.ouverture ? 'volume hausse' : 'volume baisse'} />
+          {/each}
+        </svg>
+      </div>
       <div>
         <span class="discret petit">RSI 14 (au-dessus de 70 : surachat ; en dessous de 30 : survente)</span>
         <svg viewBox="0 0 {W} {HR}" class="courbe">

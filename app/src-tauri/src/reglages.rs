@@ -50,3 +50,15 @@ pub fn tout_effacer(etat: State<'_, Etat>, confirmation: String) -> Resultat<()>
     }
     etat.db.lock().map_err(err)?.effacer_tout().map_err(err)
 }
+
+/// Enregistre un export (CSV ou image PNG) à l'emplacement choisi par l'utilisateur.
+/// Seules les extensions .csv et .png sont acceptées.
+#[tauri::command]
+pub fn enregistrer_export(chemin: String, octets: Vec<u8>) -> Resultat<()> {
+    let chemin = PathBuf::from(chemin);
+    let ext = chemin.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase());
+    if !matches!(ext.as_deref(), Some("csv") | Some("png")) {
+        return Err("Un export doit être un fichier .csv ou .png.".into());
+    }
+    std::fs::write(&chemin, octets).map_err(err)
+}

@@ -25,16 +25,7 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 /// Date du jour (UTC), sans dépendance externe.
 pub fn aujourd_hui() -> Date {
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
-    let z = secs.div_euclid(86_400) + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    let y = yoe + era * 400 + i64::from(m <= 2);
-    Date::new(y as i32, m as u8, d as u8).expect("date système valide")
+    Date::depuis_jours_unix(secs.div_euclid(86_400))
 }
 
 fn date(s: &str) -> Resultat<Date> {
@@ -110,10 +101,12 @@ pub struct TableauDeBord {
     pub livrets_cents: i64,
     pub interets_estimes_cents: i64,
     pub pv_latente_cents: i64,
+    /// Dividendes annuels estimés, nets d'impôts et de retenues (PEA + CTO).
+    pub dividendes_nets_cents: i64,
     pub par_enveloppe: Vec<Part>,
     pub par_etablissement: Vec<Part>,
     pub comptes: Vec<LigneCompte>,
-    pub alertes: Vec<String>,
+    pub alertes: Vec<crate::alertes::AlerteDto>,
 }
 
 fn libelle_enveloppe(t: &str) -> &'static str {
@@ -122,6 +115,7 @@ fn libelle_enveloppe(t: &str) -> &'static str {
         "LDDS" => "LDDS",
         "LEP" => "LEP",
         "PEA" | "PEA_PME" => "PEA",
+        "CTO" => "CTO",
         "PER" => "PER",
         _ => "Autre",
     }
@@ -133,6 +127,7 @@ fn couleur_enveloppe(t: &str) -> &'static str {
         "LDDS" => "#0284C7",
         "LEP" => "#34D399",
         "PEA" | "PEA_PME" => "#10B981",
+        "CTO" => "#8B5CF6",
         "PER" => "#FBBF24",
         _ => "#94A3B8",
     }
@@ -142,7 +137,6 @@ fn couleur_enveloppe(t: &str) -> &'static str {
 pub fn tableau_de_bord(etat: State<'_, Etat>) -> Resultat<TableauDeBord> {
     let jour = aujourd_hui();
     let comptes = etat.db.lock().map_err(err)?.comptes().map_err(err)?;
-    let alertes: Vec<String> = Vec::new();
     let mut lignes = Vec::new();
     let (mut livrets, mut interets, mut pv_latente) = (Money::ZERO, Money::ZERO, Money::ZERO);
     let mut par_env: BTreeMap<&'static str, (Money, &'static str)> = BTreeMap::new();
@@ -172,21 +166,28 @@ pub fn tableau_de_bord(etat: State<'_, Etat>) -> Resultat<TableauDeBord> {
         });
     }
 
-    // PEA : suivi de lignes, sans établissement.
-    let (valeur_pea, pv_pea) = crate::pea::totaux(&etat)?;
-    if valeur_pea > Money::ZERO {
-        pv_latente += pv_pea;
-        par_env.insert("PEA", (valeur_pea, couleur_enveloppe("PEA")));
-        *par_etab.entry("non_precise".into()).or_insert(Money::ZERO) += valeur_pea;
+    // PEA et CTO : suivi de lignes, sans établissement.
+    let mut dividendes_nets = Money::ZERO;
+    for env in ["PEA", "CTO"] {
+        let (valeur, pv, div_net) = crate::portefeuille::totaux(&etat, env)?;
+        if valeur <= Money::ZERO {
+            continue;
+        }
+        pv_latente += pv;
+        dividendes_nets += div_net;
+        par_env.insert(libelle_enveloppe(env), (valeur, couleur_enveloppe(env)));
+        *par_etab.entry("non_precise".into()).or_insert(Money::ZERO) += valeur;
         lignes.push(LigneCompte {
-            id: -1,
-            nom: "PEA".into(),
-            type_: "PEA".into(),
+            // Identifiants négatifs distincts : l'interface s'en sert comme clé de liste.
+            id: if env == "PEA" { -1 } else { -2 },
+            nom: env.into(),
+            type_: env.into(),
             etablissement: String::new(),
-            valeur_cents: valeur_pea.cents(),
-            complement_cents: pv_pea.cents(),
+            valeur_cents: valeur.cents(),
+            complement_cents: pv.cents(),
         });
     }
+    let alertes = crate::alertes::calculer(&etat)?;
 
     let total: Money = lignes.iter().map(|l| Money::from_cents(l.valeur_cents)).sum();
     let mut par_enveloppe: Vec<Part> = par_env
@@ -203,7 +204,7 @@ pub fn tableau_de_bord(etat: State<'_, Etat>) -> Resultat<TableauDeBord> {
                 .iter()
                 .find(|e| e.id == id)
                 .map(|e| e.nom.clone())
-                .unwrap_or_else(|| if id == "non_precise" { "Non précisé (PEA)".into() } else { id.clone() }),
+                .unwrap_or_else(|| if id == "non_precise" { "Non précisé (PEA, CTO)".into() } else { id.clone() }),
             couleur: etat.catalogue.couleur(&id).map(String::from),
             cle: id,
             montant_cents: m.cents(),
@@ -217,6 +218,7 @@ pub fn tableau_de_bord(etat: State<'_, Etat>) -> Resultat<TableauDeBord> {
         livrets_cents: livrets.cents(),
         interets_estimes_cents: interets.cents(),
         pv_latente_cents: pv_latente.cents(),
+        dividendes_nets_cents: dividendes_nets.cents(),
         par_enveloppe,
         par_etablissement,
         comptes: lignes,

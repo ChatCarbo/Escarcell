@@ -184,3 +184,44 @@ button.lien:hover { text-decoration: underline; }
 .zone-danger { border-color: color-mix(in srgb, #ef4444 50%, var(--bord)); }
 button.danger { background: #dc2626; border-color: #dc2626; color: #fff; }
 .carte p { line-height: 1.5; }
+
+/* Graphique : réglages, bougies, volumes, dividendes */
+.reglages-graphique { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.courbe .bougie line, .courbe .barre line { stroke-width: 1; }
+.courbe .bougie.hausse line, .courbe .barre.hausse line { stroke: #059669; }
+.courbe .bougie.baisse line, .courbe .barre.baisse line { stroke: #dc2626; }
+.courbe .bougie.hausse rect { fill: #10b981; }
+.courbe .bougie.baisse rect { fill: #ef4444; }
+.courbe .volume.hausse { fill: #10b981; opacity: 0.45; }
+.courbe .volume.baisse { fill: #ef4444; opacity: 0.45; }
+.courbe .marque-dividende circle { fill: #8b5cf6; }
+.courbe .marque-dividende text { fill: #fff; font-size: 8px; font-weight: 700; }
+.leg.dividende { background: #8b5cf6; width: 8px; height: 8px; border-radius: 50%; }
+
+/* Fiche d'une ligne, alertes, mise à jour */
+.kpi small { display: block; margin-top: 4px; font-size: 12px; }
+tr.selectionnee { background: var(--fond-survol, #f1f5f9); }
+.fiche h4 { margin: 18px 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--discret, #64748b); }
+.fiche-grille { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+.fiche-grille > div { background: var(--fond, #f8fafc); border-radius: 8px; padding: 10px 12px; }
+.fiche-grille span { display: block; font-size: 12px; color: var(--discret, #64748b); }
+.fiche-grille b { display: block; font-size: 18px; margin: 2px 0; }
+.fiche-grille small { font-size: 11px; color: var(--discret, #64748b); }
+table.decomposition td { padding: 6px 4px; }
+table.decomposition tr.total td { font-weight: 600; border-top: 2px solid var(--bord, #e2e8f0); }
+.evenement { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.alerte-ligne { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--bord, #e2e8f0); }
+.alerte-ligne:last-child { border-bottom: none; }
+.badge.attention { color: #b45309; border-color: #f59e0b; }
+.bandeau-maj { display: flex; align-items: center; gap: 12px; }
+.bandeau-maj button { margin-left: auto; }
+
+.entete .boutons { display: flex; gap: 8px; margin-left: auto; }
+.entete .boutons button { margin-left: 0; }
+
+/* Barre du haut : accès aux paramètres */
+.colonne { display: flex; flex-direction: column; min-width: 0; }
+.barre-haut { display: flex; justify-content: flex-end; padding: 12px 32px 0; max-width: 1280px; }
+.barre-haut .reglages { display: inline-flex; align-items: center; gap: 6px; }
+.barre-haut .reglages.actif { color: var(--accent); border-color: var(--accent); }
+.mention.version { margin-top: 4px; }

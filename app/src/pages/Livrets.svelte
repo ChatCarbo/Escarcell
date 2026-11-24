@@ -1,4 +1,5 @@
 <script>
+  import { exporterCsv, eurosCsv } from '../lib/export.js';
   import { onMount } from 'svelte';
   import { api } from '../lib/api.js';
   import { aujourdHui, euros, pct, versCents } from '../lib/format.js';
@@ -71,9 +72,27 @@
     const m = versCents(op.montant);
     repartition = m ? await api.repartirLivrets(op.sens, m) : null;
   }
+
+  let messageExport = $state('');
+  async function exporter() {
+    messageExport = '';
+    const lignes = detenus.flatMap((l) =>
+      l.operations.map((o) => [l.nom, o.date, o.type === 'VERSEMENT' ? 'Versement' : 'Retrait', eurosCsv(o.type === 'VERSEMENT' ? o.montant_cents : -o.montant_cents)]),
+    );
+    try {
+      const chemin = await exporterCsv('escarcelle-livrets', ['Livret', 'Date de valeur', 'Opération', 'Montant (€)'], lignes);
+      if (chemin) messageExport = `Export enregistré : ${chemin}`;
+    } catch (e) {
+      erreur = String(e);
+    }
+  }
 </script>
 
-<header class="entete"><h1>Livrets réglementés</h1></header>
+<header class="entete">
+  <h1>Livrets réglementés</h1>
+  <button onclick={exporter} disabled={!detenus.some((l) => l.operations.length)}>Exporter l'historique en CSV</button>
+</header>
+{#if messageExport}<p class="discret petit">{messageExport}</p>{/if}
 {#if erreur}<p class="erreur">{erreur}</p>{/if}
 
 <div class="kpis">
