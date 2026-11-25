@@ -174,11 +174,14 @@
             Vous pouvez attendre jusqu'au <b>{dateFr(conseil.date_conseillee)}</b> sans rien perdre :
             verser plus tôt dans la même quinzaine ne rapporte pas davantage.
           </p>
-        {:else if conseil.gain_cents > 0}
+        {:else if conseil.jours > 0}
+          <!-- Le choix du message dépend de la date seule (jours déjà passés dans la quinzaine), pas du gain :
+               sans montant saisi, le gain vaut 0 et la date n'en est pas meilleure pour autant. -->
           <p class="message attention">
             Retiré le <b>{dateFr(op.date)}</b>, ce montant ne rapporte plus depuis le <b>{dateFr(conseil.date_effet)}</b> :
             les {conseil.jours} jours déjà passés dans cette quinzaine ne sont pas payés.
-            Si vous pouvez attendre le <b>{dateFr(conseil.date_conseillee)}</b>, vous gagnez <b>{euros(conseil.gain_cents)}</b>.
+            Si vous pouvez attendre le <b>{dateFr(conseil.date_conseillee)}</b>,
+            {#if conseil.gain_cents > 0}vous gagnez <b>{euros(conseil.gain_cents)}</b>.{:else}ce montant rapporte une quinzaine de plus.{/if}
             Si vous ne pouvez pas attendre, retirer aujourd'hui ou le {dateFr(conseil.fin_quinzaine)} revient au même.
           </p>
         {:else}
