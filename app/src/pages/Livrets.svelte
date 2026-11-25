@@ -98,6 +98,13 @@
   }
 
   let messageExport = $state('');
+  // Livrets déjà au plafond (aujourd'hui), pour expliquer la répartition d'un versement.
+  const pleins = $derived(op.sens === 'VERSEMENT' ? detenus.filter((l) => l.solde_cents >= l.plafond_cents).map((l) => l.nom) : []);
+  const choisiPlein = $derived.by(() => {
+    const l = detenus.find((x) => x.type === op.livret);
+    return op.sens === 'VERSEMENT' && l && l.solde_cents >= l.plafond_cents && op.date >= aujourdHui() ? l.nom : null;
+  });
+
   const LIBELLES = { VERSEMENT: 'Versement', RETRAIT: 'Retrait', VALORISATION: 'Solde de départ' };
   // Le solde de départ n'est proposé que pour un livret qui n'en a pas encore.
   const aUnDepart = $derived(livrets.find((x) => x.type === op.livret)?.operations.some((o) => o.type === 'VALORISATION') ?? false);
@@ -167,12 +174,23 @@
       <label>Date de valeur<input type="date" min="2020-02-01" bind:value={op.date} /></label>
       <label>{op.sens === 'VALORISATION' ? 'Solde lu sur le relevé, intérêts compris (€)' : 'Montant (€)'}<input bind:value={op.montant} inputmode="decimal" onblur={repartir} /></label>
       <button type="submit" class="principal">Enregistrer</button>
-      {#if repartition && repartition.parts.length}
+      {#if repartition && (repartition.parts.length || repartition.reste_cents > 0)}
         <p class="discret petit">
-          {op.sens === 'VERSEMENT' ? 'Répartition conseillée (meilleur taux d\'abord) :' : 'Retrait conseillé (taux le plus bas d\'abord) :'}
-          {repartition.parts.map(([n, m]) => `${n} ${euros(m)}`).join(' · ')}
-          {#if repartition.reste_cents > 0}· {op.sens === 'VERSEMENT' ? 'au-delà des plafonds' : 'manque'} : {euros(repartition.reste_cents)}{/if}
+          {#if op.sens === 'VERSEMENT'}
+            Conseil (soldes d'aujourd'hui) : verser
+            {repartition.parts.map(([n, m]) => `${euros(m)} sur le ${n}`).join(', ')}
+            {#if pleins.length}— {pleins.join(' et ')} {pleins.length > 1 ? 'sont' : 'est'} au plafond{:else}— meilleur taux d'abord{/if}.
+            {#if repartition.reste_cents > 0}{euros(repartition.reste_cents)} ne peuvent être placés sur aucun livret (plafonds atteints).{/if}
+          {:else}
+            Conseil (soldes d'aujourd'hui) : retirer
+            {repartition.parts.map(([n, m]) => `${euros(m)} sur le ${n}`).join(', ')}
+            — taux le plus bas d'abord ; à taux égal, le livret au plus petit plafond.
+            {#if repartition.reste_cents > 0}Il manque {euros(repartition.reste_cents)} : les soldes ne suffisent pas.{/if}
+          {/if}
         </p>
+        {#if choisiPlein}
+          <p class="erreur petit">Le {choisiPlein} est déjà au plafond : ce versement sera refusé.</p>
+        {/if}
       {/if}
     </form>
 
