@@ -87,8 +87,10 @@ Chaque carte affiche le **solde**, une **jauge** de remplissage du plafond et le
 ### Où verser, où retirer ?
 
 Quand vous tapez un montant, Escarcelle propose une répartition :
-- pour un **versement** : d'abord le LEP (le mieux rémunéré), puis le Livret A et le LDDS, sans dépasser les plafonds ;
-- pour un **retrait** : d'abord le livret le moins rémunéré.
+- pour un **versement** : d'abord le LEP (le mieux rémunéré), puis le Livret A, puis le LDDS, sans dépasser les plafonds ;
+- pour un **retrait** : d'abord le livret le moins rémunéré ; à taux égal, le LDDS avant le Livret A (on garde plein le livret qui a le plus grand plafond).
+
+Cette suggestion est calculée sur les soldes d'aujourd'hui, tous livrets confondus : elle ne dépend pas du livret choisi dans le formulaire.
 
 ### Corriger une erreur
 

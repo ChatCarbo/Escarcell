@@ -101,10 +101,11 @@ pub struct LivretDetenu {
 }
 
 /// Répartit un versement en remplissant d'abord le livret le mieux rémunéré, dans la limite des plafonds.
+/// À taux égal (Livret A et LDDS), le livret au plus grand plafond d'abord : c'est lui qu'il vaut mieux garder plein.
 /// Renvoie (montant par livret, reste non plaçable).
 pub fn repartir_versement(livrets: &[LivretDetenu], montant: Money) -> (Vec<Money>, Money) {
     let mut ordre: Vec<usize> = (0..livrets.len()).collect();
-    ordre.sort_by(|&a, &b| livrets[b].taux.cmp(&livrets[a].taux));
+    ordre.sort_by(|&a, &b| livrets[b].taux.cmp(&livrets[a].taux).then(livrets[b].plafond.cmp(&livrets[a].plafond)));
     let mut parts = vec![Money::ZERO; livrets.len()];
     let mut reste = montant.max(Money::ZERO);
     for i in ordre {
@@ -116,10 +117,12 @@ pub fn repartir_versement(livrets: &[LivretDetenu], montant: Money) -> (Vec<Mone
 }
 
 /// Répartit un retrait en puisant d'abord dans le livret le moins rémunéré.
+/// À taux égal (Livret A et LDDS), le livret au plus petit plafond d'abord : on garde l'argent dans celui qui
+/// peut en recevoir le plus, et c'est le petit livret qu'on reconstituera le plus vite.
 /// Renvoie (montant par livret, manque si les soldes ne suffisent pas).
 pub fn repartir_retrait(livrets: &[LivretDetenu], montant: Money) -> (Vec<Money>, Money) {
     let mut ordre: Vec<usize> = (0..livrets.len()).collect();
-    ordre.sort_by(|&a, &b| livrets[a].taux.cmp(&livrets[b].taux));
+    ordre.sort_by(|&a, &b| livrets[a].taux.cmp(&livrets[b].taux).then(livrets[a].plafond.cmp(&livrets[b].plafond)));
     let mut parts = vec![Money::ZERO; livrets.len()];
     let mut reste = montant.max(Money::ZERO);
     for i in ordre {
@@ -198,5 +201,35 @@ mod tests {
         let (parts, manque) = repartir_retrait(&livrets(), eur(21_000));
         assert_eq!(parts, vec![eur(20_000), eur(1_000)]);
         assert_eq!(manque, Money::ZERO);
+    }
+
+    /// Cas signalé : Livret A et LDDS au même taux (1,70 %). Un retrait se prend sur le LDDS (petit plafond),
+    /// un versement va d'abord sur le Livret A (grand plafond), quel que soit l'ordre des livrets.
+    #[test]
+    fn taux_egaux_departages_par_le_plafond() {
+        let a = LivretDetenu {
+            nom: "Livret A".into(),
+            solde: eur(22_950),
+            plafond: eur(22_950),
+            taux: Rate::from_micro(17_000),
+        };
+        let ldds = LivretDetenu {
+            nom: "LDDS".into(),
+            solde: eur(7_000),
+            plafond: eur(12_000),
+            taux: Rate::from_micro(17_000),
+        };
+        for l in [vec![a.clone(), ldds.clone()], vec![ldds.clone(), a.clone()]] {
+            let (parts, _) = repartir_retrait(&l, eur(500));
+            let i = l.iter().position(|x| x.nom == "LDDS").unwrap();
+            assert_eq!(parts[i], eur(500), "retrait sur le LDDS");
+        }
+        let mut vide_a = a.clone();
+        vide_a.solde = eur(20_000);
+        for l in [vec![vide_a.clone(), ldds.clone()], vec![ldds.clone(), vide_a.clone()]] {
+            let (parts, _) = repartir_versement(&l, eur(1_000));
+            let i = l.iter().position(|x| x.nom == "Livret A").unwrap();
+            assert_eq!(parts[i], eur(1_000), "versement sur le Livret A");
+        }
     }
 }

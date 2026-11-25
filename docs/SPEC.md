@@ -102,8 +102,8 @@ Rappel affiché : les dates sont des **dates de valeur** ; un virement fait un v
 
 ### 4.4 Répartition entre livrets
 
-- **Versement** : remplir d'abord le livret le mieux rémunéré (LEP), puis les autres, dans la limite des plafonds ; le montant qui dépasse tous les plafonds est signalé.
-- **Retrait** : puiser d'abord dans le livret le moins rémunéré.
+- **Versement** : remplir d'abord le livret le mieux rémunéré (LEP), puis les autres, dans la limite des plafonds ; à taux égal, le livret au plus grand plafond d'abord (Livret A avant LDDS) ; le montant qui dépasse tous les plafonds est signalé.
+- **Retrait** : puiser d'abord dans le livret le moins rémunéré ; à taux égal, le livret au plus petit plafond d'abord (LDDS avant Livret A), pour garder plein celui qui peut contenir le plus.
 
 ---
 
@@ -359,7 +359,7 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 
 ### 8.5 Qualité et stabilité
 
-- `cargo test` à la racine : 71 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
+- `cargo test` à la racine : 72 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
 - `tests/robustesse.rs` : entrées vides, courtes, constantes ou mal formées (analyse technique, chandeliers, dividendes, ISIN, dates) et simulation des livrets pour toute date depuis le début de l'historique des taux ; aucune fonction ne doit planter, et les indicateurs gardent la longueur de l'historique.
 - `cargo test` dans `app/src-tauri` : 13 tests — solde de départ, contrôle du plafond et du solde à la date de valeur, base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
 - Intégration continue (GitHub Actions) à chaque envoi : `cargo fmt --check`, `cargo clippy -D warnings`, tests du cœur sous Linux et avec Rust 1.75 (version minimale), build de l'interface et tests de l'application sous Windows.
