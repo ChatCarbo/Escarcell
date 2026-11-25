@@ -45,7 +45,8 @@ pub fn ajouter_operation(etat: State<'_, Etat>, mut operation: Operation) -> Res
         return Err("La date est à plus d'un an dans le futur.".into());
     }
     operation.date = d.to_string();
-    if operation.type_ != "VERSEMENT" && operation.type_ != "RETRAIT" {
+    // VALORISATION : solde de départ lu sur un relevé (un seul par livret, daté avant les autres opérations).
+    if !["VERSEMENT", "RETRAIT", "VALORISATION"].contains(&operation.type_.as_str()) {
         return Err(format!("type d'opération inconnu : {}", operation.type_));
     }
     if !operation.montant_cents.is_some_and(|m| m > 0) {

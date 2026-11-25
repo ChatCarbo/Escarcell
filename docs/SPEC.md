@@ -69,12 +69,13 @@ Camembert par enveloppe (Livret A, LDDS, LEP, PEA), couleurs fixes. Bloc **« À
 | Retrait | Cesse de rapporter dès le **1er jour de la quinzaine en cours** |
 | Changement de taux | Chaque quinzaine est payée au taux en vigueur à son premier jour |
 | Intérêts | Calculés par quinzaine, arrondis au centime une fois par an, ajoutés au solde le 31 décembre |
+| Solde de départ | Solde lu sur un relevé, intérêts compris (type d'opération `VALORISATION`). Un seul par livret, daté au plus tôt du 01/02/2020 ; aucune opération ne peut être datée avant lui. Il rapporte dès le début de la quinzaine de sa date et n'est pas soumis au plafond (un livret ancien peut le dépasser grâce aux intérêts capitalisés). Il remplace l'historique antérieur : pas besoin des taux ni des virements d'avant. |
 
 Calcul : `intérêts(quinzaine) = max(0, solde rémunéré) × taux annuel / 24`.
 
 ### 4.2 Saisie
 
-L'utilisateur indique qu'il possède un livret (« J'ai un Livret A »), puis saisit ses virements : sens (versement ou retrait), livret, date de valeur, montant. Contrôles (côté application, à la date de valeur) : montant positif, plafond pour un versement, solde pour un retrait, aucune opération déjà saisie rendue impossible par un virement antidaté ou par une suppression, date entre le 01/02/2020 (début de l'historique des taux) et un an après aujourd'hui. Pour un livret plus ancien, on saisit son solde au 01/02/2020 comme premier versement. Historique par livret avec suppression en deux clics.
+L'utilisateur indique qu'il possède un livret (« J'ai un Livret A »), puis saisit ses virements : sens (versement ou retrait), livret, date de valeur, montant. Contrôles (côté application, à la date de valeur) : montant positif, plafond pour un versement, solde pour un retrait, aucune opération déjà saisie rendue impossible par un virement antidaté ou par une suppression, date entre le 01/02/2020 (début de l'historique des taux) et un an après aujourd'hui. Pour un livret plus ancien, on commence par un **solde de départ** : en pratique, le solde au 31 décembre du dernier relevé annuel, daté du 1er janvier suivant. Historique par livret avec suppression en deux clics.
 
 ### 4.3 Conseils de dates
 
@@ -358,9 +359,9 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 
 ### 8.5 Qualité et stabilité
 
-- `cargo test` à la racine : 67 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
+- `cargo test` à la racine : 69 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
 - `tests/robustesse.rs` : entrées vides, courtes, constantes ou mal formées (analyse technique, chandeliers, dividendes, ISIN, dates) et simulation des livrets pour toute date depuis le début de l'historique des taux ; aucune fonction ne doit planter, et les indicateurs gardent la longueur de l'historique.
-- `cargo test` dans `app/src-tauri` : 12 tests — contrôle du plafond et du solde à la date de valeur, base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
+- `cargo test` dans `app/src-tauri` : 13 tests — solde de départ, contrôle du plafond et du solde à la date de valeur, base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
 - Intégration continue (GitHub Actions) à chaque envoi : `cargo fmt --check`, `cargo clippy -D warnings`, tests du cœur sous Linux et avec Rust 1.75 (version minimale), build de l'interface et tests de l'application sous Windows.
 - Règles de robustesse de l'application :
   - aucune commande ne garde le verrou de la base pendant une requête réseau (vérifié par le compilateur : les commandes asynchrones doivent être `Send`) ;
@@ -379,6 +380,7 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 | :--- | :--- | :--- |
 | **V1** (0.2.0) | Tableau de bord, Livrets, PEA et CTO (lignes, cours y compris en devises, dividendes, AG, analyse technique), exports CSV et PNG, Paramètres | Publiée |
 | **0.3 — stabilisation** | CTO et PEA-PME supprimés ; historique des taux des livrets depuis 2020 ; contrôles de saisie côté Rust ; **aucune nouvelle fonction** : code mort supprimé ; vérification des versions désactivée par défaut ; intégration continue ; fiscalité (flat tax, crédit d'impôt, retenues) testée contre des sources officielles (BOFiP, impots.gouv.fr, conventions fiscales) ; intérêts des livrets comparés à de vrais relevés ; deux à trois semaines d'utilisation réelle, une issue GitHub par problème, chaque issue corrigée avec un test | En cours |
+| 0.4 | Livrets : **intérêt maximal de l'année en cours** sur chaque carte = maximum théorique d'un livret resté au plafond du 1er janvier au 31 décembre, soit la somme, sur les 24 quinzaines, de plafond × taux de la quinzaine / 24, arrondie au centime une fois. En 2026 : Livret A 367,20 € (22 950 € à 1,60 % en moyenne), LDDS 192,00 €, LEP 251,67 € | Demandé, reporté après la stabilisation |
 | V1.1 | Dates d'AG récupérées depuis les données ouvertes du BALO ; mise à jour des taux par fichier signé ; écran Aide intégré | — |
 | V1.2 | Alertes de cours (seuils) ; notifications système ; éventuellement PEA-PME et compte-titres, réécrits (ancien code dans l'historique, étiquette `v0.2.0`) | — |
 | V2 | **Impôt et dons** : TMI, décote, plafonnement, réduction pour dons ; **PER** : intérêt d'un versement selon la TMI | À réécrire (ancien code dans l'historique, étiquette `v0.2.0`) |

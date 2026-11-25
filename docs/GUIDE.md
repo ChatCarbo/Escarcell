@@ -73,12 +73,12 @@ Dans **Livrets**, trois cartes s'affichent : LEP, Livret A, LDDS. Pour chaque li
 
 1. Choisissez **Versement** ou **Retrait**.
 2. Choisissez le livret.
-3. Indiquez la **date de valeur** (celle qui figure sur votre relevé, pas forcément le jour où vous avez fait le virement). Escarcelle connaît les taux depuis le **1er février 2020** : pour un livret plus ancien, saisissez comme premier versement son solde à cette date (il figure sur votre relevé de début 2020).
+3. Indiquez la **date de valeur** (celle qui figure sur votre relevé, pas forcément le jour où vous avez fait le virement). Escarcelle connaît les taux depuis le **1er février 2020** : pour un livret plus ancien, commencez par un **solde de départ** (voir ci-dessous).
 4. Indiquez le montant, puis **Enregistrer**.
 
 Escarcelle refuse un versement qui dépasserait le plafond (22 950 € pour le Livret A, 12 000 € pour le LDDS, 10 000 € pour le LEP) et un retrait supérieur au solde. Le contrôle se fait **à la date de valeur** : un versement daté de 2021 est comparé au solde de 2021, sans les intérêts gagnés depuis.
 
-> **Astuce pour démarrer** : inutile de ressaisir des années d'historique. Faites un seul versement du montant de votre solde actuel, daté du jour. Les intérêts de l'année en cours seront un peu sous-estimés la première année, puis tout sera exact.
+> **Pour démarrer : le solde de départ.** Inutile de ressaisir des années de virements. Choisissez **Solde de départ**, puis indiquez le solde de votre dernier relevé annuel, **intérêts compris** (par exemple le solde au 31 décembre 2025), daté du **1er janvier** suivant. Ce solde rapporte dès le 1er janvier, et il peut dépasser le plafond si les intérêts l'ont fait grossir. Saisissez ensuite les virements faits depuis. Un seul solde de départ par livret ; pour le changer, supprimez-le dans l'historique.
 
 ### Ce que vous voyez
 
@@ -317,7 +317,7 @@ Une fenêtre vous demande où enregistrer le fichier.
 Vérifiez que les dates saisies sont bien les **dates de valeur** du relevé. Si vous avez démarré avec un versement unique égal à votre solde, les intérêts de la première année sont sous-estimés (les quinzaines antérieures ne sont pas connues d'Escarcelle).
 
 **Escarcelle refuse un virement daté d'avant 2020.**
-Les taux des livrets sont connus depuis le 1er février 2020. Saisissez votre solde à cette date comme premier versement, daté du 1er février 2020, puis les virements suivants.
+Les taux des livrets sont connus depuis le 1er février 2020. Saisissez un **solde de départ** (le solde d'un relevé, intérêts compris, daté du 1er février 2020 ou après), puis les virements suivants.
 
 **Un titre est introuvable dans la recherche.**
 Essayez son code ISIN, ou son nom en anglais. Seuls les titres cotés **en euros** apparaissent.

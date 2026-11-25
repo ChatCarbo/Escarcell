@@ -37,7 +37,7 @@
   $effect(() => {
     const { livret, sens, date, montant } = op;
     const numero = ++numeroConseil;
-    if (!date) {
+    if (!date || sens === 'VALORISATION') {
       conseil = null;
       return;
     }
@@ -89,6 +89,7 @@
 
   async function repartir() {
     const m = versCents(op.montant);
+    if (op.sens === 'VALORISATION') return (repartition = null);
     try {
       repartition = m && m > 0 ? await api.repartirLivrets(op.sens, m) : null;
     } catch (e) {
@@ -97,10 +98,17 @@
   }
 
   let messageExport = $state('');
+  const LIBELLES = { VERSEMENT: 'Versement', RETRAIT: 'Retrait', VALORISATION: 'Solde de départ' };
+  // Le solde de départ n'est proposé que pour un livret qui n'en a pas encore.
+  const aUnDepart = $derived(livrets.find((x) => x.type === op.livret)?.operations.some((o) => o.type === 'VALORISATION') ?? false);
+  $effect(() => {
+    if (aUnDepart && op.sens === 'VALORISATION') op.sens = 'VERSEMENT';
+  });
+
   async function exporter() {
     messageExport = '';
     const lignes = detenus.flatMap((l) =>
-      l.operations.map((o) => [l.nom, o.date, o.type === 'VERSEMENT' ? 'Versement' : 'Retrait', eurosCsv(o.type === 'VERSEMENT' ? o.montant_cents : -o.montant_cents)]),
+      l.operations.map((o) => [l.nom, o.date, LIBELLES[o.type], eurosCsv(o.type === 'RETRAIT' ? -o.montant_cents : o.montant_cents)]),
     );
     try {
       const chemin = await exporterCsv('escarcelle-livrets', ['Livret', 'Date de valeur', 'Opération', 'Montant (€)'], lignes);
@@ -149,12 +157,15 @@
       <div class="segments">
         <button type="button" class:actif={op.sens === 'VERSEMENT'} onclick={() => (op.sens = 'VERSEMENT')}>Versement</button>
         <button type="button" class:actif={op.sens === 'RETRAIT'} onclick={() => (op.sens = 'RETRAIT')}>Retrait</button>
+        {#if !aUnDepart}
+          <button type="button" class:actif={op.sens === 'VALORISATION'} onclick={() => { op.sens = 'VALORISATION'; repartition = null; }}>Solde de départ</button>
+        {/if}
       </div>
       <label>Livret
         <select bind:value={op.livret}>{#each detenus as l}<option value={l.type}>{l.nom}</option>{/each}</select>
       </label>
       <label>Date de valeur<input type="date" min="2020-02-01" bind:value={op.date} /></label>
-      <label>Montant (€)<input bind:value={op.montant} inputmode="decimal" onblur={repartir} /></label>
+      <label>{op.sens === 'VALORISATION' ? 'Solde lu sur le relevé, intérêts compris (€)' : 'Montant (€)'}<input bind:value={op.montant} inputmode="decimal" onblur={repartir} /></label>
       <button type="submit" class="principal">Enregistrer</button>
       {#if repartition && repartition.parts.length}
         <p class="discret petit">
@@ -166,8 +177,18 @@
     </form>
 
     <section class="carte">
-      <h3>{op.sens === 'VERSEMENT' ? 'Quand verser ?' : 'Quand retirer ?'}</h3>
-      {#if conseil}
+      <h3>{op.sens === 'VERSEMENT' ? 'Quand verser ?' : op.sens === 'RETRAIT' ? 'Quand retirer ?' : 'Solde de départ'}</h3>
+      {#if op.sens === 'VALORISATION'}
+        <p class="message ok">
+          Inutile de ressaisir des années de virements : indiquez le solde figurant sur un relevé, <b>intérêts compris</b>,
+          à sa date. Le plus simple : le solde au 31 décembre de votre relevé annuel, daté du <b>1er janvier</b> suivant.
+        </p>
+        <p class="discret petit">
+          Ce solde rapporte dès le début de la quinzaine de sa date. Il peut dépasser le plafond (grâce aux intérêts
+          capitalisés). Un seul solde de départ par livret ; les virements saisis ensuite doivent être datés après lui.
+          Date au plus tôt : 1er février 2020.
+        </p>
+      {:else if conseil}
         {#if op.sens === 'VERSEMENT'}
           <p class="message ok">
             Versé le <b>{dateFr(op.date)}</b>, l'argent rapporte à partir du <b>{dateFr(conseil.date_effet)}</b>.
@@ -213,8 +234,8 @@
             {#each l.operations as o (o.id)}
               <tr>
                 <td>{new Date(o.date + 'T00:00:00').toLocaleDateString('fr-FR')}</td>
-                <td>{o.type === 'VERSEMENT' ? 'Versement' : 'Retrait'}</td>
-                <td class="nombre" class:positif={o.type === 'VERSEMENT'} class:negatif={o.type === 'RETRAIT'}>{o.type === 'VERSEMENT' ? '+' : '−'}{euros(o.montant_cents)}</td>
+                <td>{LIBELLES[o.type]}</td>
+                <td class="nombre" class:positif={o.type === 'VERSEMENT'} class:negatif={o.type === 'RETRAIT'}>{o.type === 'VERSEMENT' ? '+' : o.type === 'RETRAIT' ? '−' : '='}{euros(o.montant_cents)}</td>
                 <td class="actions"><button class="discret" class:negatif={aSupprimer === o.id} onclick={() => supprimer(o.id)}>{aSupprimer === o.id ? 'Confirmer ?' : '✕'}</button></td>
               </tr>
             {/each}

@@ -5,6 +5,8 @@
 //! - Chaque quinzaine est rémunérée au taux en vigueur à son premier jour.
 //! - Les intérêts sont arrondis au centime une seule fois et capitalisés au 31 décembre.
 //! - Le plafond limite les dépôts ; seule la capitalisation des intérêts peut le dépasser.
+//! - Un **solde de départ** (lu sur un relevé, intérêts compris) remplace l'historique antérieur : il est
+//!   rémunéré dès le début de la quinzaine de sa date et n'est pas soumis au plafond.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -18,6 +20,8 @@ use crate::rate::{Rate, SCALE};
 pub enum Sens {
     Depot,
     Retrait,
+    /// Solde constaté sur un relevé, point de départ du calcul.
+    Depart,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -34,6 +38,9 @@ impl Mouvement {
     }
     pub fn retrait(date: Date, montant: Money) -> Self {
         Self { date, sens: Sens::Retrait, montant }
+    }
+    pub fn depart(date: Date, montant: Money) -> Self {
+        Self { date, sens: Sens::Depart, montant }
     }
 }
 
@@ -71,7 +78,8 @@ pub fn quinzaine(d: Date) -> u8 {
 pub fn quinzaine_effet(d: Date, sens: Sens) -> (i32, u8) {
     let q = quinzaine(d);
     match sens {
-        Sens::Retrait => (d.year(), q),
+        // Le solde de départ était déjà sur le livret : il compte pour la quinzaine de sa date.
+        Sens::Retrait | Sens::Depart => (d.year(), q),
         Sens::Depot if q == 24 => (d.year() + 1, 1),
         Sens::Depot => (d.year(), q + 1),
     }
@@ -93,7 +101,7 @@ pub fn simuler(mouvements: &[Mouvement], taux: &Series<Rate>, jusqu_a: i32) -> R
             return Err(LivretError::MontantInvalide(*m));
         }
         let delta = match m.sens {
-            Sens::Depot => m.montant.cents(),
+            Sens::Depot | Sens::Depart => m.montant.cents(),
             Sens::Retrait => -m.montant.cents(),
         };
         *effets.entry(quinzaine_effet(m.date, m.sens)).or_default() += delta;
@@ -152,6 +160,10 @@ pub enum Anomalie {
     PlafondDepasse { marge: Money },
     /// Retrait supérieur au solde du jour.
     SoldeInsuffisant { solde: Money },
+    /// Mouvement daté avant le solde de départ (déjà compris dans ce solde).
+    AvantSoldeDepart { depart: Date },
+    /// Second solde de départ pour le même livret.
+    SoldeDepartEnDouble,
 }
 
 /// Contrôle chaque mouvement **à sa date** : un dépôt ne doit pas faire dépasser le plafond, un retrait
@@ -179,6 +191,20 @@ pub fn controler(
         simuler(mouvements, taux, derniere)?.into_iter().map(|a| (a.annee, a.interets.cents())).collect();
 
     let mut anomalies = Vec::new();
+    // Le premier solde de départ saisi fait foi ; les autres sont en double.
+    let depart = mouvements.iter().position(|m| m.sens == Sens::Depart);
+    if let Some(d) = depart {
+        for (i, m) in mouvements.iter().enumerate() {
+            if i == d {
+                continue;
+            }
+            if m.sens == Sens::Depart {
+                anomalies.push((i, Anomalie::SoldeDepartEnDouble));
+            } else if m.date < mouvements[d].date {
+                anomalies.push((i, Anomalie::AvantSoldeDepart { depart: mouvements[d].date }));
+            }
+        }
+    }
     let mut operations: i64 = 0; // somme des mouvements déjà passés
     for i in ordre {
         let m = mouvements[i];
@@ -192,6 +218,7 @@ pub fn controler(
                 }
                 operations += m.montant.cents();
             }
+            Sens::Depart => operations += m.montant.cents(),
             Sens::Retrait => {
                 if m.montant.cents() > solde {
                     anomalies.push((i, Anomalie::SoldeInsuffisant { solde: Money::from_cents(solde.max(0)) }));
@@ -305,5 +332,35 @@ mod tests {
         ];
         assert_eq!(controler(&m, &t, p).unwrap(), vec![(1, Anomalie::SoldeInsuffisant { solde: Money::ZERO })]);
         assert_eq!(controler(&[], &t, p).unwrap(), vec![]);
+    }
+
+    /// Livret plein depuis longtemps : 23 100 € au 31/12/2025, au-delà du plafond grâce aux intérêts.
+    /// Le solde de départ est accepté, et rapporte dès la première quinzaine de 2026.
+    #[test]
+    fn solde_de_depart_au_dela_du_plafond() {
+        let p = Money::from_euros(22_950);
+        let t = taux_fixe(2);
+        let m = vec![Mouvement::depart(Date::ymd(2026, 1, 1), Money::from_euros(23_100))];
+        assert_eq!(controler(&m, &t, p).unwrap(), vec![]);
+        // 23 100 € × 2 % sur l'année entière = 462 € (24 quinzaines).
+        assert_eq!(simuler(&m, &t, 2026).unwrap()[0].interets, Money::from_euros(462));
+        // Un versement de 1 € reste refusé : le solde dépasse déjà le plafond.
+        let mut m2 = m.clone();
+        m2.push(Mouvement::depot(Date::ymd(2026, 3, 1), Money::from_euros(1)));
+        assert_eq!(controler(&m2, &t, p).unwrap(), vec![(1, Anomalie::PlafondDepasse { marge: Money::ZERO })]);
+    }
+
+    #[test]
+    fn solde_de_depart_unique_et_premier() {
+        let p = Money::from_euros(22_950);
+        let t = taux_fixe(2);
+        let m = vec![
+            Mouvement::depart(Date::ymd(2025, 1, 1), Money::from_euros(5_000)),
+            Mouvement::depot(Date::ymd(2024, 6, 1), Money::from_euros(100)),
+            Mouvement::depart(Date::ymd(2025, 6, 1), Money::from_euros(6_000)),
+        ];
+        let a = controler(&m, &t, p).unwrap();
+        assert!(a.contains(&(1, Anomalie::AvantSoldeDepart { depart: Date::ymd(2025, 1, 1) })));
+        assert!(a.contains(&(2, Anomalie::SoldeDepartEnDouble)));
     }
 }

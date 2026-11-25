@@ -72,6 +72,10 @@ pub fn valoriser(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money,
                 mvts.push(Mouvement::retrait(d, m));
                 net -= m;
             }
+            "VALORISATION" => {
+                mvts.push(Mouvement::depart(d, m));
+                net += m;
+            }
             _ => {}
         }
     }
@@ -94,6 +98,7 @@ fn mouvements(ops: &[Operation]) -> Resultat<Vec<(i64, Mouvement)>> {
         match o.type_.as_str() {
             "VERSEMENT" => res.push((o.id, Mouvement::depot(d, m))),
             "RETRAIT" => res.push((o.id, Mouvement::retrait(d, m))),
+            "VALORISATION" => res.push((o.id, Mouvement::depart(d, m))),
             _ => {}
         }
     }
@@ -130,11 +135,20 @@ pub fn verifier_modification(type_: &str, avant: &[Operation], apres: &[Operatio
             Anomalie::SoldeInsuffisant { solde } => {
                 format!("le solde au {quand} ({solde}) serait insuffisant pour ce retrait")
             }
+            Anomalie::AvantSoldeDepart { depart } => format!(
+                "elle est datée avant le solde de départ du {} (déjà compris dans ce solde)",
+                date_fr(depart)
+            ),
+            Anomalie::SoldeDepartEnDouble => "ce livret a déjà un solde de départ (supprimez-le d'abord)".into(),
         };
         return Err(if ajout && id == 0 {
             format!("Opération refusée : {cause}.")
         } else {
-            let quoi = if m.sens == Sens::Depot { "versement" } else { "retrait" };
+            let quoi = match m.sens {
+                Sens::Depot => "versement",
+                Sens::Retrait => "retrait",
+                Sens::Depart => "solde de départ",
+            };
             let action = if ajout { "Avec cette opération" } else { "Sans cette opération" };
             format!("{action}, le {quoi} de {} du {quand} ne serait plus possible : {cause}.", m.montant)
         });
@@ -169,7 +183,7 @@ pub fn tous(etat: &Etat) -> Resultat<Vec<LivretDto>> {
             interets_estimes_cents: interets.cents(),
             operations: ops
                 .into_iter()
-                .filter(|o| o.type_ == "VERSEMENT" || o.type_ == "RETRAIT")
+                .filter(|o| ["VERSEMENT", "RETRAIT", "VALORISATION"].contains(&o.type_.as_str()))
                 .rev()
                 .map(|o| OperationDto {
                     id: o.id,
@@ -335,5 +349,25 @@ mod tests {
         let mut encore = apres.clone();
         encore.push(op(0, "2025-09-01", "VERSEMENT", 100));
         assert!(verifier_modification("LDDS", &apres, &encore, true).is_ok());
+    }
+
+    #[test]
+    fn solde_de_depart() {
+        // Livret A plein depuis longtemps : 23 100 € au relevé du 31/12/2025, au-delà du plafond.
+        let avant: Vec<Operation> = Vec::new();
+        let apres = vec![op(0, "2026-01-01", "VALORISATION", 23_100)];
+        assert!(verifier_modification("LIVRET_A", &avant, &apres, true).is_ok());
+        let (solde, _) = valoriser("LIVRET_A", &apres, "2026-06-01".parse().unwrap()).unwrap();
+        assert_eq!(solde, Money::from_euros(23_100));
+        // Un versement daté avant le solde de départ est refusé, ainsi qu'un second solde de départ.
+        let avant = vec![op(1, "2026-01-01", "VALORISATION", 23_100)];
+        let mut apres = avant.clone();
+        apres.push(op(0, "2025-06-01", "VERSEMENT", 10));
+        let e = verifier_modification("LIVRET_A", &avant, &apres, true).unwrap_err();
+        assert!(e.contains("avant le solde de départ"), "{e}");
+        let mut apres = avant.clone();
+        apres.push(op(0, "2026-03-01", "VALORISATION", 100));
+        let e = verifier_modification("LIVRET_A", &avant, &apres, true).unwrap_err();
+        assert!(e.contains("déjà un solde de départ"), "{e}");
     }
 }
