@@ -5,8 +5,10 @@
 //! - Chaque quinzaine est rémunérée au taux en vigueur à son premier jour.
 //! - Les intérêts sont arrondis au centime une seule fois et capitalisés au 31 décembre.
 //! - Le plafond limite les dépôts ; seule la capitalisation des intérêts peut le dépasser.
-//! - Un **solde de départ** (lu sur un relevé, intérêts compris) remplace l'historique antérieur : il est
-//!   rémunéré dès le début de la quinzaine de sa date et n'est pas soumis au plafond.
+//! - Un **solde de départ** (lu sur un relevé, intérêts compris) remplace l'historique antérieur et n'est pas
+//!   soumis au plafond. Daté d'un 1er ou d'un 16, il est rémunéré dès cette quinzaine ; sinon, à partir de la
+//!   suivante, comme un versement : un solde au 31 décembre comprend déjà les intérêts de l'année, il ne doit pas
+//!   rapporter une seconde fois la quinzaine du 16 au 31 décembre.
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -78,10 +80,11 @@ pub fn quinzaine(d: Date) -> u8 {
 pub fn quinzaine_effet(d: Date, sens: Sens) -> (i32, u8) {
     let q = quinzaine(d);
     match sens {
-        // Le solde de départ était déjà sur le livret : il compte pour la quinzaine de sa date.
-        Sens::Retrait | Sens::Depart => (d.year(), q),
-        Sens::Depot if q == 24 => (d.year() + 1, 1),
-        Sens::Depot => (d.year(), q + 1),
+        Sens::Retrait => (d.year(), q),
+        // Solde de départ daté d'un début de quinzaine : il rapporte dès cette quinzaine.
+        Sens::Depart if d.day() == 1 || d.day() == 16 => (d.year(), q),
+        Sens::Depart | Sens::Depot if q == 24 => (d.year() + 1, 1),
+        Sens::Depart | Sens::Depot => (d.year(), q + 1),
     }
 }
 
@@ -167,8 +170,12 @@ pub enum Anomalie {
 }
 
 /// Contrôle chaque mouvement **à sa date** : un dépôt ne doit pas faire dépasser le plafond, un retrait
-/// ne doit pas dépasser le solde. Le solde d'un jour comprend les mouvements des jours précédents et du jour
-/// même (dans l'ordre donné), et les intérêts capitalisés aux 31 décembre des années précédentes.
+/// ne doit pas dépasser le solde. Le solde d'un jour comprend les mouvements des jours précédents et les
+/// intérêts capitalisés aux 31 décembre des années précédentes.
+///
+/// Mouvements d'un même jour : l'ordre de saisie ne compte pas. Un dépôt tient compte des retraits du jour
+/// (retirer 12 000 € puis les reverser le même jour est possible au plafond), et un retrait tient compte des
+/// dépôts du jour.
 ///
 /// C'est le solde à la date du mouvement qui compte, pas le solde d'aujourd'hui : un versement daté de 2021
 /// se juge sur le solde de 2021, sans les intérêts capitalisés depuis.
@@ -205,28 +212,42 @@ pub fn controler(
             }
         }
     }
-    let mut operations: i64 = 0; // somme des mouvements déjà passés
-    for i in ordre {
-        let m = mouvements[i];
-        let capitalises: i64 = interets.range(..m.date.year()).map(|(_, v)| v).sum();
-        let solde = operations + capitalises;
-        match m.sens {
-            Sens::Depot => {
-                let marge = (plafond.cents() - solde).max(0);
-                if m.montant.cents() > marge {
-                    anomalies.push((i, Anomalie::PlafondDepasse { marge: Money::from_cents(marge) }));
-                }
-                operations += m.montant.cents();
+    let mut operations: i64 = 0; // somme des mouvements des jours précédents
+    let mut k = 0;
+    while k < ordre.len() {
+        // Mouvements du même jour.
+        let jour = mouvements[ordre[k]].date;
+        let fin = ordre[k..].iter().position(|&i| mouvements[i].date != jour).map_or(ordre.len(), |n| k + n);
+        let du_jour = &ordre[k..fin];
+        let capitalises: i64 = interets.range(..jour.year()).map(|(_, v)| v).sum();
+        let somme = |sens: Sens| -> i64 {
+            du_jour.iter().filter(|&&i| mouvements[i].sens == sens).map(|&i| mouvements[i].montant.cents()).sum()
+        };
+        let (depots, retraits, departs) = (somme(Sens::Depot), somme(Sens::Retrait), somme(Sens::Depart));
+        let debut = operations + capitalises + departs;
+        // Retraits : sur le solde du début du jour plus les dépôts du jour, dans l'ordre de saisie.
+        let mut disponible = debut + depots;
+        for &i in du_jour.iter().filter(|&&i| mouvements[i].sens == Sens::Retrait) {
+            let m = mouvements[i].montant.cents();
+            if m > disponible {
+                anomalies.push((i, Anomalie::SoldeInsuffisant { solde: Money::from_cents(disponible.max(0)) }));
             }
-            Sens::Depart => operations += m.montant.cents(),
-            Sens::Retrait => {
-                if m.montant.cents() > solde {
-                    anomalies.push((i, Anomalie::SoldeInsuffisant { solde: Money::from_cents(solde.max(0)) }));
-                }
-                operations -= m.montant.cents();
-            }
+            disponible -= m;
         }
+        // Dépôts : sur le solde du début du jour moins les retraits du jour, dans l'ordre de saisie.
+        let mut solde = debut - retraits;
+        for &i in du_jour.iter().filter(|&&i| mouvements[i].sens == Sens::Depot) {
+            let m = mouvements[i].montant.cents();
+            let marge = (plafond.cents() - solde).max(0);
+            if m > marge {
+                anomalies.push((i, Anomalie::PlafondDepasse { marge: Money::from_cents(marge) }));
+            }
+            solde += m;
+        }
+        operations += departs + depots - retraits;
+        k = fin;
     }
+    anomalies.sort_by_key(|(i, _)| *i);
     Ok(anomalies)
 }
 
@@ -362,5 +383,40 @@ mod tests {
         let a = controler(&m, &t, p).unwrap();
         assert!(a.contains(&(1, Anomalie::AvantSoldeDepart { depart: Date::ymd(2025, 1, 1) })));
         assert!(a.contains(&(2, Anomalie::SoldeDepartEnDouble)));
+    }
+
+    /// Cas signalé : solde de départ de 22 950 € au 31/12/2025, puis le 04/05/2026 un retrait de 12 000 € et un
+    /// versement de 12 000 €. Le solde du 31/12 comprend déjà les intérêts de 2025 : il ne doit pas rapporter la
+    /// quinzaine du 16 au 31 décembre, et le versement du même jour que le retrait doit passer.
+    #[test]
+    fn retrait_et_versement_le_meme_jour_au_plafond() {
+        let p = Money::from_euros(22_950);
+        let t = taux_fixe(2);
+        let m = vec![
+            Mouvement::depart(Date::ymd(2025, 12, 31), Money::from_euros(22_950)),
+            Mouvement::retrait(Date::ymd(2026, 5, 4), Money::from_euros(12_000)),
+            Mouvement::depot(Date::ymd(2026, 5, 4), Money::from_euros(12_000)),
+        ];
+        // Aucun intérêt en 2025 : le solde ne rapporte qu'à partir de la 1re quinzaine de 2026.
+        assert_eq!(simuler(&m[..1], &t, 2026).unwrap()[0].annee, 2026);
+        assert_eq!(controler(&m, &t, p).unwrap(), vec![]);
+        // Saisis dans l'autre ordre (versement d'abord), c'est la même chose.
+        let inverse = vec![m[0], m[2], m[1]];
+        assert_eq!(controler(&inverse, &t, p).unwrap(), vec![]);
+        // Un euro de plus reste refusé.
+        let mut trop = m.clone();
+        trop[2].montant = Money::from_euros(12_001);
+        assert_eq!(
+            controler(&trop, &t, p).unwrap(),
+            vec![(2, Anomalie::PlafondDepasse { marge: Money::from_euros(12_000) })]
+        );
+    }
+
+    #[test]
+    fn solde_de_depart_date_d_un_debut_de_quinzaine() {
+        assert_eq!(quinzaine_effet(Date::ymd(2026, 1, 1), Sens::Depart), (2026, 1));
+        assert_eq!(quinzaine_effet(Date::ymd(2026, 3, 16), Sens::Depart), (2026, 6));
+        assert_eq!(quinzaine_effet(Date::ymd(2026, 3, 10), Sens::Depart), (2026, 6));
+        assert_eq!(quinzaine_effet(Date::ymd(2025, 12, 31), Sens::Depart), (2026, 1));
     }
 }

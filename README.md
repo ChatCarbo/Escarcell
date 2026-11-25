@@ -73,7 +73,7 @@ docs/                     Documentation
 
 ```sh
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
-cargo test                       # cœur de calcul : 69 tests, sans réseau
+cargo test                       # cœur de calcul : 71 tests, sans réseau
 cd app/src-tauri && cargo test   # application : 13 tests (livrets, base, migration, cours, versions)
 cd .. && npm install && npm run tauri dev
 ```

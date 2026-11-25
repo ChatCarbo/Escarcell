@@ -184,8 +184,8 @@
           à sa date. Le plus simple : le solde au 31 décembre de votre relevé annuel, daté du <b>1er janvier</b> suivant.
         </p>
         <p class="discret petit">
-          Ce solde rapporte dès le début de la quinzaine de sa date. Il peut dépasser le plafond (grâce aux intérêts
-          capitalisés). Un seul solde de départ par livret ; les virements saisis ensuite doivent être datés après lui.
+          Daté d'un 1er ou d'un 16, ce solde rapporte dès cette quinzaine ; sinon à partir de la suivante (un solde au
+          31 décembre comprend déjà les intérêts de l'année). Il peut dépasser le plafond (grâce aux intérêts capitalisés). Un seul solde de départ par livret ; les virements saisis ensuite doivent être datés après lui.
           Date au plus tôt : 1er février 2020.
         </p>
       {:else if conseil}

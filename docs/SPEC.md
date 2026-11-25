@@ -61,7 +61,7 @@ Camembert par enveloppe (Livret A, LDDS, LEP, PEA), couleurs fixes. Bloc **« À
 | :--- | :--- |
 | Livrets gérés | Un Livret A, un LDDS et un LEP au plus (un par personne) |
 | Plafonds de versement | Livret A 22 950 € · LDDS 12 000 € · LEP 10 000 € |
-| Plafond | Un versement est refusé si `solde à sa date de valeur + versement > plafond`. Le solde d'un jour comprend les virements jusqu'à ce jour et les intérêts capitalisés aux 31 décembre précédents : un versement daté de 2021 se juge sur le solde de 2021, pas sur celui d'aujourd'hui. Seuls les intérêts capitalisés peuvent faire dépasser le plafond. |
+| Plafond | Un versement est refusé si `solde à sa date de valeur + versement > plafond`. Pour des virements du même jour, l'ordre de saisie ne compte pas : un versement tient compte des retraits du jour, un retrait des versements du jour. Le solde d'un jour comprend les virements jusqu'à ce jour et les intérêts capitalisés aux 31 décembre précédents : un versement daté de 2021 se juge sur le solde de 2021, pas sur celui d'aujourd'hui. Seuls les intérêts capitalisés peuvent faire dépasser le plafond. |
 | Taux | Fixés par l'État, révisables au 1er février et au 1er août. Au 01/08/2026 : Livret A et LDDS 1,70 %, LEP 2,50 %. Historique embarqué depuis le 01/02/2020 (§8.2). |
 | Fiscalité | Intérêts exonérés d'impôt et de prélèvements sociaux |
 | Quinzaines | L'année compte 24 quinzaines : du 1er au 15 et du 16 à la fin du mois. |
@@ -69,7 +69,7 @@ Camembert par enveloppe (Livret A, LDDS, LEP, PEA), couleurs fixes. Bloc **« À
 | Retrait | Cesse de rapporter dès le **1er jour de la quinzaine en cours** |
 | Changement de taux | Chaque quinzaine est payée au taux en vigueur à son premier jour |
 | Intérêts | Calculés par quinzaine, arrondis au centime une fois par an, ajoutés au solde le 31 décembre |
-| Solde de départ | Solde lu sur un relevé, intérêts compris (type d'opération `VALORISATION`). Un seul par livret, daté au plus tôt du 01/02/2020 ; aucune opération ne peut être datée avant lui. Il rapporte dès le début de la quinzaine de sa date et n'est pas soumis au plafond (un livret ancien peut le dépasser grâce aux intérêts capitalisés). Il remplace l'historique antérieur : pas besoin des taux ni des virements d'avant. |
+| Solde de départ | Solde lu sur un relevé, intérêts compris (type d'opération `VALORISATION`). Un seul par livret, daté au plus tôt du 01/02/2020 ; aucune opération ne peut être datée avant lui. Daté d'un 1er ou d'un 16, il rapporte dès cette quinzaine ; sinon à partir de la suivante, comme un versement (un solde au 31 décembre comprend déjà les intérêts de l'année et ne doit pas rapporter une seconde fois la quinzaine du 16 au 31 décembre). Il n'est pas soumis au plafond (un livret ancien peut le dépasser grâce aux intérêts capitalisés). Il remplace l'historique antérieur : pas besoin des taux ni des virements d'avant. |
 
 Calcul : `intérêts(quinzaine) = max(0, solde rémunéré) × taux annuel / 24`.
 
@@ -359,7 +359,7 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 
 ### 8.5 Qualité et stabilité
 
-- `cargo test` à la racine : 69 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
+- `cargo test` à la racine : 71 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
 - `tests/robustesse.rs` : entrées vides, courtes, constantes ou mal formées (analyse technique, chandeliers, dividendes, ISIN, dates) et simulation des livrets pour toute date depuis le début de l'historique des taux ; aucune fonction ne doit planter, et les indicateurs gardent la longueur de l'historique.
 - `cargo test` dans `app/src-tauri` : 13 tests — solde de départ, contrôle du plafond et du solde à la date de valeur, base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
 - Intégration continue (GitHub Actions) à chaque envoi : `cargo fmt --check`, `cargo clippy -D warnings`, tests du cœur sous Linux et avec Rust 1.75 (version minimale), build de l'interface et tests de l'application sous Windows.

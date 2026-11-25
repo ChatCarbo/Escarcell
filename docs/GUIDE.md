@@ -78,7 +78,7 @@ Dans **Livrets**, trois cartes s'affichent : LEP, Livret A, LDDS. Pour chaque li
 
 Escarcelle refuse un versement qui dépasserait le plafond (22 950 € pour le Livret A, 12 000 € pour le LDDS, 10 000 € pour le LEP) et un retrait supérieur au solde. Le contrôle se fait **à la date de valeur** : un versement daté de 2021 est comparé au solde de 2021, sans les intérêts gagnés depuis.
 
-> **Pour démarrer : le solde de départ.** Inutile de ressaisir des années de virements. Choisissez **Solde de départ**, puis indiquez le solde de votre dernier relevé annuel, **intérêts compris** (par exemple le solde au 31 décembre 2025), daté du **1er janvier** suivant. Ce solde rapporte dès le 1er janvier, et il peut dépasser le plafond si les intérêts l'ont fait grossir. Saisissez ensuite les virements faits depuis. Un seul solde de départ par livret ; pour le changer, supprimez-le dans l'historique.
+> **Pour démarrer : le solde de départ.** Inutile de ressaisir des années de virements. Choisissez **Solde de départ**, puis indiquez le solde de votre dernier relevé annuel, **intérêts compris** (par exemple le solde au 31 décembre 2025), daté du **1er janvier** suivant (daté du 31 décembre, c'est pareil). Ce solde rapporte dès le 1er janvier, et il peut dépasser le plafond si les intérêts l'ont fait grossir. Saisissez ensuite les virements faits depuis. Un seul solde de départ par livret ; pour le changer, supprimez-le dans l'historique.
 
 ### Ce que vous voyez
 
