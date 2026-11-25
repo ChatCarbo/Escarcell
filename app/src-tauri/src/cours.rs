@@ -350,13 +350,46 @@ pub async fn dividendes(http: &reqwest::Client, symbole: &str) -> Result<InfosDi
         })
         .unwrap_or_default();
     versements.sort();
-    let maintenant = r.meta.regular_market_time.or_else(|| r.timestamp.last().copied()).unwrap_or(0);
+    let maintenant = r.meta.regular_market_time.filter(|t| *t > 0).unwrap_or_else(maintenant);
     let cible = maintenant - 365 * 86_400;
-    let cours_un_an_micro = r.indicators.and_then(|mut i| i.quote.pop()).and_then(|q| {
-        let i = r.timestamp.iter().rposition(|&t| t <= cible)?;
-        q.close.get(i).copied().flatten().filter(|c| cours_valide(*c)).map(|c| (c * 1_000_000.0).round() as i64)
-    });
+    // Cours d'il y a un an : clôture de la séance du même jour un an plus tôt (ou de la précédente),
+    // tirée de l'historique journalier. Les barres mensuelles ne conviennent pas : la barre d'un mois porte
+    // la clôture de la fin du mois, jusqu'à un mois d'écart avec la date voulue.
+    let cours_un_an_micro = match cloture_journaliere(http, symbole, cible).await {
+        Some(c) => Some(c),
+        None => r.indicators.and_then(|mut i| i.quote.pop()).and_then(|q| cloture_avant(&r.timestamp, &q.close, cible)),
+    };
     Ok(InfosDividendes { versements, cours_un_an_micro })
+}
+
+/// Dernière clôture valide dont l'horodatage est au plus `cible`, en millionièmes.
+fn cloture_avant(horodatages: &[i64], clotures: &[Option<f64>], cible: i64) -> Option<i64> {
+    horodatages
+        .iter()
+        .zip(clotures)
+        .rev()
+        .filter(|(t, _)| **t <= cible)
+        .find_map(|(_, c)| c.filter(|c| cours_valide(*c)))
+        .map(|c| (c * 1_000_000.0).round() as i64)
+}
+
+/// Clôture journalière à la date `cible` (ou à la séance précédente), sur deux ans d'historique.
+async fn cloture_journaliere(http: &reqwest::Client, symbole: &str, cible: i64) -> Option<i64> {
+    let url = format!("https://query1.finance.yahoo.com/v8/finance/chart/{symbole}");
+    let c: Chart = http
+        .get(url)
+        .query(&[("interval", "1d"), ("range", "2y")])
+        .send()
+        .await
+        .ok()?
+        .error_for_status()
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let r = c.chart.result.and_then(|mut r| r.pop())?;
+    let q = r.indicators.and_then(|mut i| i.quote.pop())?;
+    cloture_avant(&r.timestamp, &q.close, cible)
 }
 
 /// Pays probable d'une société à partir de sa place de cotation, faute d'ISIN.
@@ -382,6 +415,19 @@ pub fn pays_par_place(symbole: &str) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloture_d_il_y_a_un_an() {
+        let jour = 86_400;
+        let t = [10 * jour, 11 * jour, 12 * jour, 15 * jour];
+        let c = [Some(100.0), Some(101.5), None, Some(103.0)];
+        // Séance du jour voulu.
+        assert_eq!(cloture_avant(&t, &c, 11 * jour + 3_600), Some(101_500_000));
+        // Jour sans cotation valide (ou week-end) : séance précédente.
+        assert_eq!(cloture_avant(&t, &c, 13 * jour), Some(101_500_000));
+        assert_eq!(cloture_avant(&t, &c, 9 * jour), None);
+        assert_eq!(cloture_avant(&[], &[], 9 * jour), None);
+    }
 
     #[test]
     fn symboles() {

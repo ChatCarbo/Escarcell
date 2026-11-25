@@ -76,7 +76,7 @@ Dans **Livrets**, trois cartes s'affichent : LEP, Livret A, LDDS. Pour chaque li
 3. Indiquez la **date de valeur** (celle qui figure sur votre relevé, pas forcément le jour où vous avez fait le virement). Escarcelle connaît les taux depuis le **1er février 2020** : pour un livret plus ancien, saisissez comme premier versement son solde à cette date (il figure sur votre relevé de début 2020).
 4. Indiquez le montant, puis **Enregistrer**.
 
-Escarcelle refuse un versement qui dépasserait le plafond (22 950 € pour le Livret A, 12 000 € pour le LDDS, 10 000 € pour le LEP) et un retrait supérieur au solde.
+Escarcelle refuse un versement qui dépasserait le plafond (22 950 € pour le Livret A, 12 000 € pour le LDDS, 10 000 € pour le LEP) et un retrait supérieur au solde. Le contrôle se fait **à la date de valeur** : un versement daté de 2021 est comparé au solde de 2021, sans les intérêts gagnés depuis.
 
 > **Astuce pour démarrer** : inutile de ressaisir des années d'historique. Faites un seul versement du montant de votre solde actuel, daté du jour. Les intérêts de l'année en cours seront un peu sous-estimés la première année, puis tout sera exact.
 

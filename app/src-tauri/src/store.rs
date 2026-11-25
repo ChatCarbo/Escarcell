@@ -115,6 +115,11 @@ DELETE FROM evenements WHERE symbole NOT IN (SELECT symbole FROM positions);
 DELETE FROM dividendes WHERE symbole NOT IN (SELECT symbole FROM positions);
 DELETE FROM infos_titres WHERE symbole NOT IN (SELECT symbole FROM positions);
 "#,
+    r#"
+-- Version 0.3 : le cours d'il y a un an est désormais pris sur l'historique journalier (et non mensuel).
+-- On oublie les valeurs déjà enregistrées pour qu'elles soient recalculées à la prochaine actualisation.
+DELETE FROM infos_titres;
+"#,
 ];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

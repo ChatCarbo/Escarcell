@@ -51,12 +51,38 @@ pub fn ajouter_operation(etat: State<'_, Etat>, mut operation: Operation) -> Res
     if !operation.montant_cents.is_some_and(|m| m > 0) {
         return Err("Le montant doit être positif.".into());
     }
-    etat.db().ajouter_operation(&operation).map_err(err)
+    // Plafond et solde contrôlés à la date de valeur, avec toutes les opérations du livret.
+    let db = etat.db();
+    let type_ = type_livret(&db, operation.compte_id)?;
+    let avant = db.operations(operation.compte_id).map_err(err)?;
+    let mut apres = avant.clone();
+    apres.push(Operation { id: 0, ..operation.clone() });
+    crate::livrets::verifier_modification(&type_, &avant, &apres, true)?;
+    db.ajouter_operation(&operation).map_err(err)
+}
+
+/// Type (LIVRET_A, LDDS, LEP) du compte.
+fn type_livret(db: &crate::store::Store, compte_id: i64) -> Resultat<String> {
+    db.comptes()
+        .map_err(err)?
+        .into_iter()
+        .find(|c| c.id == compte_id)
+        .map(|c| c.type_)
+        .ok_or_else(|| "Livret introuvable.".to_string())
 }
 
 #[tauri::command]
 pub fn supprimer_operation(etat: State<'_, Etat>, id: i64) -> Resultat<()> {
-    etat.db().supprimer_operation(id).map_err(err)
+    let db = etat.db();
+    // Retrouver le livret de l'opération, pour vérifier que sa suppression ne rend pas un retrait impossible.
+    for c in db.comptes().map_err(err)? {
+        let avant = db.operations(c.id).map_err(err)?;
+        if avant.iter().any(|o| o.id == id) {
+            let apres: Vec<Operation> = avant.iter().filter(|o| o.id != id).cloned().collect();
+            crate::livrets::verifier_modification(&c.type_, &avant, &apres, false)?;
+        }
+    }
+    db.supprimer_operation(id).map_err(err)
 }
 
 // ---------- Tableau de bord ----------

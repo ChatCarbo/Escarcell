@@ -61,7 +61,7 @@ Camembert par enveloppe (Livret A, LDDS, LEP, PEA), couleurs fixes. Bloc **« À
 | :--- | :--- |
 | Livrets gérés | Un Livret A, un LDDS et un LEP au plus (un par personne) |
 | Plafonds de versement | Livret A 22 950 € · LDDS 12 000 € · LEP 10 000 € |
-| Plafond | Un versement est refusé si `solde + versement > plafond`. Seuls les intérêts capitalisés peuvent faire dépasser le plafond. |
+| Plafond | Un versement est refusé si `solde à sa date de valeur + versement > plafond`. Le solde d'un jour comprend les virements jusqu'à ce jour et les intérêts capitalisés aux 31 décembre précédents : un versement daté de 2021 se juge sur le solde de 2021, pas sur celui d'aujourd'hui. Seuls les intérêts capitalisés peuvent faire dépasser le plafond. |
 | Taux | Fixés par l'État, révisables au 1er février et au 1er août. Au 01/08/2026 : Livret A et LDDS 1,70 %, LEP 2,50 %. Historique embarqué depuis le 01/02/2020 (§8.2). |
 | Fiscalité | Intérêts exonérés d'impôt et de prélèvements sociaux |
 | Quinzaines | L'année compte 24 quinzaines : du 1er au 15 et du 16 à la fin du mois. |
@@ -74,7 +74,7 @@ Calcul : `intérêts(quinzaine) = max(0, solde rémunéré) × taux annuel / 24`
 
 ### 4.2 Saisie
 
-L'utilisateur indique qu'il possède un livret (« J'ai un Livret A »), puis saisit ses virements : sens (versement ou retrait), livret, date de valeur, montant. Contrôles : montant positif, plafond pour un versement, solde pour un retrait, date entre le 01/02/2020 (début de l'historique des taux) et un an après aujourd'hui. Pour un livret plus ancien, on saisit son solde au 01/02/2020 comme premier versement. Historique par livret avec suppression en deux clics.
+L'utilisateur indique qu'il possède un livret (« J'ai un Livret A »), puis saisit ses virements : sens (versement ou retrait), livret, date de valeur, montant. Contrôles (côté application, à la date de valeur) : montant positif, plafond pour un versement, solde pour un retrait, aucune opération déjà saisie rendue impossible par un virement antidaté ou par une suppression, date entre le 01/02/2020 (début de l'historique des taux) et un an après aujourd'hui. Pour un livret plus ancien, on saisit son solde au 01/02/2020 comme premier versement. Historique par livret avec suppression en deux clics.
 
 ### 4.3 Conseils de dates
 
@@ -144,7 +144,7 @@ Symbole de cotation : lettres, chiffres, point, tiret, `^`, `=` ou `_`, 20 carac
 | Investi | quantité × PRU |
 | Valeur | quantité × dernier cours (ou × PRU si aucun cours n'est connu) |
 | Plus ou moins-value | valeur − investi, en euros et en % |
-| Variation sur 1 an | dernier cours / cours mensuel d'il y a 12 mois − 1 |
+| Variation sur 1 an | dernier cours / clôture de la séance du même jour un an plus tôt (ou de la séance précédente) − 1, d'après l'historique journalier |
 
 Totaux en haut de page, camembert de répartition des lignes. Modification de la quantité, du PRU et du pays de la société, suppression en deux clics.
 
@@ -154,7 +154,7 @@ Totaux en haut de page, camembert de répartition des lignes. Modification de la
 - Yahoo Finance fournit aussi l'historique et les dividendes. Il n'y a pas de source de secours.
 - Un cours absent, nul, négatif ou non numérique est ignoré. Un cours sans heure de cotation est daté du moment de la récupération.
 - Mise à jour à l'ouverture de la page PEA, puis toutes les 5 minutes tant qu'elle est ouverte, ou à la demande (« Actualiser les cours »).
-- Les dividendes et le cours d'il y a un an sont récupérés en même temps, au plus une fois par jour et par titre (une requête mensuelle sur 10 ans).
+- Les dividendes et le cours d'il y a un an sont récupérés au plus une fois par jour et par titre : une requête mensuelle sur 10 ans pour les dividendes, une requête journalière sur 2 ans pour le cours d'il y a un an.
 - Cours en général **différés d'environ 15 minutes**. L'heure du cours est toujours affichée.
 - Seules les cotations en euros sont acceptées.
 - Si un titre n'est pas trouvé : saisie manuelle du cours.
@@ -328,7 +328,7 @@ Les conversions depuis la saisie (« 1 234,56 ») se font une seule fois, à l'e
 
 ### 8.3 Stockage
 
-Un seul fichier SQLite, schéma versionné et migré automatiquement à l'ouverture (et après une restauration). La migration 6 (version 0.3) supprime les lignes du compte-titres et du PEA-PME, la table `pea_pme`, les taux de change, les retenues des pays hors PEA, ainsi que les dividendes, informations et événements des titres qui ne sont plus détenus.
+Un seul fichier SQLite, schéma versionné et migré automatiquement à l'ouverture (et après une restauration). La migration 7 (version 0.3) efface les cours d'il y a un an déjà enregistrés, pour qu'ils soient recalculés sur l'historique journalier. La migration 6 (version 0.3) supprime les lignes du compte-titres et du PEA-PME, la table `pea_pme`, les taux de change, les retenues des pays hors PEA, ainsi que les dividendes, informations et événements des titres qui ne sont plus détenus.
 
 | Table | Contenu |
 | :--- | :--- |
@@ -358,9 +358,9 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 
 ### 8.5 Qualité et stabilité
 
-- `cargo test` à la racine : 63 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
+- `cargo test` à la racine : 67 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
 - `tests/robustesse.rs` : entrées vides, courtes, constantes ou mal formées (analyse technique, chandeliers, dividendes, ISIN, dates) et simulation des livrets pour toute date depuis le début de l'historique des taux ; aucune fonction ne doit planter, et les indicateurs gardent la longueur de l'historique.
-- `cargo test` dans `app/src-tauri` : 9 tests — base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
+- `cargo test` dans `app/src-tauri` : 12 tests — contrôle du plafond et du solde à la date de valeur, base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
 - Intégration continue (GitHub Actions) à chaque envoi : `cargo fmt --check`, `cargo clippy -D warnings`, tests du cœur sous Linux et avec Rust 1.75 (version minimale), build de l'interface et tests de l'application sous Windows.
 - Règles de robustesse de l'application :
   - aucune commande ne garde le verrou de la base pendant une requête réseau (vérifié par le compilateur : les commandes asynchrones doivent être `Send`) ;

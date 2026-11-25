@@ -145,6 +145,64 @@ pub fn verifier_depot(solde: Money, depot: Money, plafond: Money) -> Result<(), 
     }
 }
 
+/// Mouvement impossible à la date où il est daté.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Anomalie {
+    /// Dépôt au-delà du plafond : `marge` est le dépôt maximum possible ce jour-là.
+    PlafondDepasse { marge: Money },
+    /// Retrait supérieur au solde du jour.
+    SoldeInsuffisant { solde: Money },
+}
+
+/// Contrôle chaque mouvement **à sa date** : un dépôt ne doit pas faire dépasser le plafond, un retrait
+/// ne doit pas dépasser le solde. Le solde d'un jour comprend les mouvements des jours précédents et du jour
+/// même (dans l'ordre donné), et les intérêts capitalisés aux 31 décembre des années précédentes.
+///
+/// C'est le solde à la date du mouvement qui compte, pas le solde d'aujourd'hui : un versement daté de 2021
+/// se juge sur le solde de 2021, sans les intérêts capitalisés depuis.
+///
+/// Rend la liste des anomalies, avec l'indice du mouvement dans `mouvements`.
+pub fn controler(
+    mouvements: &[Mouvement],
+    taux: &Series<Rate>,
+    plafond: Money,
+) -> Result<Vec<(usize, Anomalie)>, LivretError> {
+    let mut ordre: Vec<usize> = (0..mouvements.len()).collect();
+    ordre.sort_by_key(|&i| mouvements[i].date); // tri stable : ordre de saisie conservé pour un même jour
+    let derniere = match ordre.last() {
+        Some(&i) => mouvements[i].date.year(),
+        None => return Ok(Vec::new()),
+    };
+    // Intérêts capitalisés au 31 décembre de chaque année (ceux d'une année ne dépendent que des mouvements
+    // datés de cette année ou d'avant).
+    let interets: BTreeMap<i32, i64> =
+        simuler(mouvements, taux, derniere)?.into_iter().map(|a| (a.annee, a.interets.cents())).collect();
+
+    let mut anomalies = Vec::new();
+    let mut operations: i64 = 0; // somme des mouvements déjà passés
+    for i in ordre {
+        let m = mouvements[i];
+        let capitalises: i64 = interets.range(..m.date.year()).map(|(_, v)| v).sum();
+        let solde = operations + capitalises;
+        match m.sens {
+            Sens::Depot => {
+                let marge = (plafond.cents() - solde).max(0);
+                if m.montant.cents() > marge {
+                    anomalies.push((i, Anomalie::PlafondDepasse { marge: Money::from_cents(marge) }));
+                }
+                operations += m.montant.cents();
+            }
+            Sens::Retrait => {
+                if m.montant.cents() > solde {
+                    anomalies.push((i, Anomalie::SoldeInsuffisant { solde: Money::from_cents(solde.max(0)) }));
+                }
+                operations -= m.montant.cents();
+            }
+        }
+    }
+    Ok(anomalies)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +237,73 @@ mod tests {
             verifier_depot(Money::from_euros(23_100), Money::from_cents(1), p),
             Err(PlafondDepasse { marge: Money::ZERO })
         );
+    }
+
+    fn taux_fixe(pct: i64) -> Series<Rate> {
+        Series::new(vec![(Date::ymd(2000, 1, 1), Rate::from_micro(pct * 10_000))])
+    }
+
+    /// Cas signalé : 2 000 € versés en mai 2021, le solde d'aujourd'hui (intérêts compris) est de 2 202,48 €.
+    /// Un versement daté du 18/05/2021 se juge sur le solde de mai 2021 (2 000 €), pas sur celui d'aujourd'hui.
+    #[test]
+    fn plafond_juge_a_la_date_du_versement() {
+        let p = Money::from_euros(22_950);
+        let t = taux_fixe(2);
+        let mut m = vec![Mouvement::depot(Date::ymd(2021, 5, 3), Money::from_euros(2_000))];
+        m.push(Mouvement::depot(Date::ymd(2021, 5, 18), Money::from_euros(20_940)));
+        assert_eq!(controler(&m, &t, p).unwrap(), vec![]);
+        // 20 951 € dépasse de 1 € : marge de 20 950 € ce jour-là.
+        m[1].montant = Money::from_euros(20_951);
+        assert_eq!(
+            controler(&m, &t, p).unwrap(),
+            vec![(1, Anomalie::PlafondDepasse { marge: Money::from_euros(20_950) })]
+        );
+    }
+
+    #[test]
+    fn interets_capitalises_comptes_a_partir_de_l_annee_suivante() {
+        let p = Money::from_euros(1_000);
+        let t = taux_fixe(10);
+        // 900 € versés le 1er janvier 2024 rapportent des intérêts, capitalisés au 31/12/2024.
+        let base = vec![Mouvement::depot(Date::ymd(2024, 1, 1), Money::from_euros(900))];
+        let interets = simuler(&base, &t, 2024).unwrap()[0].interets;
+        assert!(interets > Money::ZERO);
+        // En décembre 2024, la marge est de 100 € ; en janvier 2025, elle a diminué des intérêts.
+        let mut m = base.clone();
+        m.push(Mouvement::depot(Date::ymd(2024, 12, 31), Money::from_euros(100)));
+        assert_eq!(controler(&m, &t, p).unwrap(), vec![]);
+        let mut m = base.clone();
+        m.push(Mouvement::depot(Date::ymd(2025, 1, 2), Money::from_euros(100)));
+        assert_eq!(
+            controler(&m, &t, p).unwrap(),
+            vec![(1, Anomalie::PlafondDepasse { marge: Money::from_euros(100) - interets })]
+        );
+    }
+
+    #[test]
+    fn versement_anterieur_qui_bloque_un_versement_posterieur() {
+        let p = Money::from_euros(10_000);
+        let t = taux_fixe(0);
+        let m = vec![
+            Mouvement::depot(Date::ymd(2025, 6, 1), Money::from_euros(9_000)),
+            // Saisi après coup mais daté avant : à sa date, il passe ; c'est le versement de juin qui dépasse.
+            Mouvement::depot(Date::ymd(2025, 3, 1), Money::from_euros(2_000)),
+        ];
+        assert_eq!(
+            controler(&m, &t, p).unwrap(),
+            vec![(0, Anomalie::PlafondDepasse { marge: Money::from_euros(8_000) })]
+        );
+    }
+
+    #[test]
+    fn retrait_superieur_au_solde_du_jour() {
+        let p = Money::from_euros(22_950);
+        let t = taux_fixe(0);
+        let m = vec![
+            Mouvement::depot(Date::ymd(2025, 6, 1), Money::from_euros(500)),
+            Mouvement::retrait(Date::ymd(2025, 3, 1), Money::from_euros(100)),
+        ];
+        assert_eq!(controler(&m, &t, p).unwrap(), vec![(1, Anomalie::SoldeInsuffisant { solde: Money::ZERO })]);
+        assert_eq!(controler(&[], &t, p).unwrap(), vec![]);
     }
 }

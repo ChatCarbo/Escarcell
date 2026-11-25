@@ -62,10 +62,8 @@
     const l = livrets.find((x) => x.type === op.livret);
     const m = versCents(op.montant);
     if (!l?.compte_id || !m || m <= 0) return (erreur = 'Choisissez un livret et un montant.');
-    if (op.sens === 'VERSEMENT' && l.solde_cents + m > l.plafond_cents) {
-      return (erreur = `Ce versement dépasserait le plafond de ${euros(l.plafond_cents)} (maximum possible : ${euros(Math.max(l.plafond_cents - l.solde_cents, 0))}).`);
-    }
-    if (op.sens === 'RETRAIT' && m > l.solde_cents) return (erreur = 'Montant supérieur au solde.');
+    // Plafond et solde sont contrôlés par l'application à la date de valeur du virement (et non sur le solde
+    // d'aujourd'hui, qui comprend les intérêts capitalisés depuis).
     try {
       await api.ajouterOperation({
         id: 0, compte_id: l.compte_id, date: op.date, type: op.sens, montant_cents: m,

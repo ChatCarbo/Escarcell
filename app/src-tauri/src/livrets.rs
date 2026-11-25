@@ -4,7 +4,7 @@
 use escarcelle_core::conseil_livret::{
     conseil_retrait, conseil_versement, repartir_retrait, repartir_versement, LivretDetenu,
 };
-use escarcelle_core::livret::{simuler, Mouvement};
+use escarcelle_core::livret::{controler, simuler, Anomalie, Mouvement, Sens};
 use escarcelle_core::params::{embarque, LivretParams};
 use escarcelle_core::{Date, Money};
 use serde::Serialize;
@@ -79,6 +79,67 @@ pub fn valoriser(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money,
     let capitalises: Money = annees.iter().filter(|a| a.annee < jour.year()).map(|a| a.interets).sum();
     let estimes = annees.iter().find(|a| a.annee == jour.year()).map(|a| a.interets).unwrap_or(Money::ZERO);
     Ok((net + capitalises, estimes))
+}
+
+fn date_fr(d: Date) -> String {
+    format!("{:02}/{:02}/{}", d.day(), d.month(), d.year())
+}
+
+/// Mouvements d'une liste d'opérations, avec l'identifiant de l'opération correspondante.
+fn mouvements(ops: &[Operation]) -> Resultat<Vec<(i64, Mouvement)>> {
+    let mut res = Vec::new();
+    for o in ops {
+        let d: Date = o.date.parse().map_err(err)?;
+        let m = Money::from_cents(o.montant_cents.unwrap_or(0));
+        match o.type_.as_str() {
+            "VERSEMENT" => res.push((o.id, Mouvement::depot(d, m))),
+            "RETRAIT" => res.push((o.id, Mouvement::retrait(d, m))),
+            _ => {}
+        }
+    }
+    Ok(res)
+}
+
+/// Anomalies (plafond dépassé, retrait supérieur au solde), chacune jugée à la date de son opération.
+fn anomalies(type_: &str, ops: &[Operation]) -> Resultat<Vec<(i64, Mouvement, Anomalie)>> {
+    let p = params(type_);
+    let mvts = mouvements(ops)?;
+    let seuls: Vec<Mouvement> = mvts.iter().map(|(_, m)| *m).collect();
+    Ok(controler(&seuls, &p.taux, p.plafond)
+        .map_err(err)?
+        .into_iter()
+        .map(|(i, a)| (mvts[i].0, mvts[i].1, a))
+        .collect())
+}
+
+/// Vérifie qu'une modification (ajout ou suppression d'une opération) ne crée pas d'anomalie.
+/// `nouvelle` est l'identifiant de l'opération ajoutée (0) ou `None` pour une suppression.
+/// Les anomalies déjà présentes avant la modification ne bloquent pas : seules les nouvelles sont refusées.
+pub fn verifier_modification(type_: &str, avant: &[Operation], apres: &[Operation], ajout: bool) -> Resultat<()> {
+    let deja: Vec<i64> = anomalies(type_, avant)?.into_iter().map(|(id, _, _)| id).collect();
+    let plafond = params(type_).plafond;
+    for (id, m, a) in anomalies(type_, apres)? {
+        if deja.contains(&id) {
+            continue;
+        }
+        let quand = date_fr(m.date);
+        let cause = match a {
+            Anomalie::PlafondDepasse { marge } => format!(
+                "le plafond de {plafond} serait dépassé au {quand} (versement maximum possible ce jour-là : {marge}, intérêts capitalisés compris)"
+            ),
+            Anomalie::SoldeInsuffisant { solde } => {
+                format!("le solde au {quand} ({solde}) serait insuffisant pour ce retrait")
+            }
+        };
+        return Err(if ajout && id == 0 {
+            format!("Opération refusée : {cause}.")
+        } else {
+            let quoi = if m.sens == Sens::Depot { "versement" } else { "retrait" };
+            let action = if ajout { "Avec cette opération" } else { "Sans cette opération" };
+            format!("{action}, le {quoi} de {} du {quand} ne serait plus possible : {cause}.", m.montant)
+        });
+    }
+    Ok(())
 }
 
 pub fn tous(etat: &Etat) -> Resultat<Vec<LivretDto>> {
@@ -229,4 +290,50 @@ pub fn repartir_livrets(etat: State<'_, Etat>, sens: String, montant_cents: i64)
             .collect(),
         reste_cents: reste.cents(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn op(id: i64, date: &str, type_: &str, euros: i64) -> Operation {
+        Operation {
+            id,
+            compte_id: 1,
+            date: date.into(),
+            type_: type_.into(),
+            montant_cents: Some(euros * 100),
+            isin: None,
+            quantite_micro: None,
+            cours_micro: None,
+            frais_cents: 0,
+            valeur_plan_cents: None,
+            libelle: None,
+        }
+    }
+
+    /// Cas signalé : 2 000 € versés le 03/05/2021, le solde d'aujourd'hui dépasse 2 200 € avec les intérêts.
+    /// Un versement de 20 940 € daté du 18/05/2021 doit passer : le plafond se juge sur le solde de mai 2021.
+    #[test]
+    fn versement_antidate_juge_sur_le_solde_de_sa_date() {
+        let avant = vec![op(1, "2021-05-03", "VERSEMENT", 2_000)];
+        let mut apres = avant.clone();
+        apres.push(op(0, "2021-05-18", "VERSEMENT", 20_940));
+        assert!(verifier_modification("LIVRET_A", &avant, &apres, true).is_ok());
+        apres[1].montant_cents = Some(20_951 * 100);
+        let e = verifier_modification("LIVRET_A", &avant, &apres, true).unwrap_err();
+        assert!(e.contains("plafond"), "{e}");
+    }
+
+    #[test]
+    fn suppression_qui_rendrait_un_retrait_impossible() {
+        let avant = vec![op(1, "2025-03-03", "VERSEMENT", 1_000), op(2, "2025-06-03", "RETRAIT", 800)];
+        let apres = vec![avant[1].clone()];
+        let e = verifier_modification("LDDS", &avant, &apres, false).unwrap_err();
+        assert!(e.starts_with("Sans cette opération, le retrait"), "{e}");
+        // Une anomalie déjà présente avant la modification ne bloque pas les autres saisies.
+        let mut encore = apres.clone();
+        encore.push(op(0, "2025-09-01", "VERSEMENT", 100));
+        assert!(verifier_modification("LDDS", &apres, &encore, true).is_ok());
+    }
 }
