@@ -28,7 +28,7 @@
     try {
       const chemin = await exporterImage(
         'escarcelle-repartition',
-        `Répartition de l'épargne au ${new Date(tdb.date).toLocaleDateString('fr-FR')} : ${euros(tdb.total_cents)}`,
+        `Répartition de l'épargne au ${new Date(tdb.date + 'T00:00:00').toLocaleDateString('fr-FR')} : ${euros(tdb.total_cents)}`,
         [racine.querySelector('.donut svg')],
         tdb.par_enveloppe.filter((p) => p.montant_cents > 0).map((p) => `${p.libelle} ${euros(p.montant_cents)}`).join(' · '),
       );
@@ -49,7 +49,7 @@
 
 <header class="entete">
   <h1>Tableau de bord</h1>
-  {#if tdb}<span class="discret">au {new Date(tdb.date).toLocaleDateString('fr-FR')}</span>{/if}
+  {#if tdb}<span class="discret">au {new Date(tdb.date + 'T00:00:00').toLocaleDateString('fr-FR')}</span>{/if}
   {#if tdb}
     <div class="boutons">
       <button onclick={exporterComptes} disabled={!tdb.comptes.length}>Exporter en CSV</button>
@@ -67,7 +67,7 @@
     <div class="kpi"><span>Livrets réglementés</span><strong>{euros(tdb.livrets_cents)}</strong></div>
     <div class="kpi"><span>Intérêts estimés cette année</span><strong>{euros(tdb.interets_estimes_cents)}</strong></div>
     <div class="kpi">
-      <span>Plus-value latente (PEA + CTO)</span>
+      <span>Plus-value latente du PEA</span>
       <strong class:positif={tdb.pv_latente_cents > 0} class:negatif={tdb.pv_latente_cents < 0}>{euros(tdb.pv_latente_cents)}</strong>
     </div>
     <div class="kpi"><span>Dividendes nets par an</span><strong class="positif">{euros(tdb.dividendes_nets_cents)}</strong></div>
@@ -94,7 +94,7 @@
   <section class="carte">
     <h3>Comptes</h3>
     {#if tdb.comptes.length === 0}
-      <p class="vide">Aucun compte. Commencez par la page Livrets, PEA ou CTO.</p>
+      <p class="vide">Aucun compte. Commencez par la page Livrets ou PEA.</p>
     {:else}
       <table>
         <thead><tr><th>Compte</th><th>Type</th><th class="nombre">Valeur</th><th class="nombre">Intérêts estimés / PV latente</th></tr></thead>

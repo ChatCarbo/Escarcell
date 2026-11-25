@@ -11,14 +11,18 @@
 
   let retenues = $state([]);
   let editionRetenue = $state(null); // { pays, valeur }
-  let majAuto = $state(true);
+  let majAuto = $state(false);
   let maj = $state(null);
   let verification = $state(false);
 
   onMount(async () => {
-    emplacement = await api.emplacementDonnees();
-    retenues = await api.retenues();
-    majAuto = await api.verificationAuto(null);
+    try {
+      emplacement = await api.emplacementDonnees();
+      retenues = await api.retenues();
+      majAuto = await api.verificationAuto(null);
+    } catch (e) {
+      message = { classe: 'alerte', texte: String(e) };
+    }
   });
 
   async function enregistrerRetenue() {
@@ -33,11 +37,19 @@
   }
 
   async function retenueParDefaut(pays) {
-    retenues = await api.definirRetenue(pays, null);
+    try {
+      retenues = await api.definirRetenue(pays, null);
+    } catch (e) {
+      message = { classe: 'alerte', texte: String(e) };
+    }
   }
 
   async function basculerMajAuto() {
-    majAuto = await api.verificationAuto(!majAuto);
+    try {
+      majAuto = await api.verificationAuto(!majAuto);
+    } catch (e) {
+      message = { classe: 'alerte', texte: String(e) };
+    }
   }
 
   async function verifier() {
@@ -99,7 +111,7 @@
 
 <section class="carte">
   <h3>Sauvegarder</h3>
-  <p>Toutes vos données (livrets, lignes du PEA et du CTO, dividendes, assemblées générales, réglages) tiennent dans un seul fichier. Enregistrez-en une copie où vous voulez : clé USB, disque externe, dossier synchronisé.</p>
+  <p>Toutes vos données (livrets, lignes du PEA, dividendes, assemblées générales, réglages) tiennent dans un seul fichier. Enregistrez-en une copie où vous voulez : clé USB, disque externe, dossier synchronisé.</p>
   <button class="principal" onclick={sauvegarder}>Sauvegarder Escarcelle…</button>
   <p class="discret petit">Fichier de données actuel : {emplacement}</p>
 </section>
@@ -119,8 +131,8 @@
 <section class="carte">
   <h3>Retenues à la source sur les dividendes</h3>
   <p>
-    Taux prélevés par le pays de la société avant le versement. Dans un PEA, cette retenue est perdue ; dans un CTO,
-    elle donne droit à un crédit d'impôt limité à 12,8 %. Les valeurs proposées sont indicatives : vérifiez-les sur vos relevés.
+    Taux prélevés par le pays de la société avant le versement. Dans un PEA, cette retenue est perdue. Les retenues proposées sont indicatives :
+    vérifiez-les sur vos relevés. 
   </p>
   <table>
     <thead><tr><th>Pays</th><th class="nombre">Retenue</th><th class="nombre">Par défaut</th><th></th></tr></thead>
@@ -153,7 +165,7 @@
 
 <section class="carte">
   <h3>Nouvelles versions</h3>
-  <label class="case"><input type="checkbox" checked={majAuto} onchange={basculerMajAuto} /> Vérifier au démarrage si une nouvelle version est publiée sur GitHub</label>
+  <label class="case"><input type="checkbox" checked={majAuto} onchange={basculerMajAuto} /> Vérifier au démarrage si une nouvelle version est publiée sur GitHub (désactivé par défaut)</label>
   <p><button onclick={verifier} disabled={verification}>{verification ? 'Vérification…' : 'Vérifier maintenant'}</button></p>
   {#if maj}
     {#if maj.disponible}
@@ -163,12 +175,15 @@
       <p class="message">Vous avez la dernière version ({maj.version_actuelle}).</p>
     {/if}
   {/if}
-  <p class="discret petit">Seul le numéro de la dernière version est demandé à GitHub : rien n'est envoyé, téléchargé ni installé automatiquement.</p>
+  <p class="discret petit">
+    La vérification envoie une requête à api.github.com : GitHub voit votre adresse IP, comme pour toute page web, mais aucune
+    donnée d'Escarcelle n'est transmise. Rien n'est téléchargé ni installé automatiquement.
+  </p>
 </section>
 
 <section class="carte zone-danger">
   <h3>Tout effacer</h3>
-  <p>Supprime définitivement tous les livrets, virements, lignes du PEA et du CTO, cours, dividendes, AG et réglages. Cette action est irréversible : faites une sauvegarde avant.</p>
+  <p>Supprime définitivement tous les livrets, virements, lignes du PEA, cours, dividendes, AG et réglages. Cette action est irréversible : faites une sauvegarde avant.</p>
   <label>Tapez EFFACER pour confirmer<input bind:value={confirmation} placeholder="EFFACER" /></label>
   <button class="danger" disabled={confirmation.trim() !== 'EFFACER'} onclick={effacer}>Tout effacer</button>
 </section>

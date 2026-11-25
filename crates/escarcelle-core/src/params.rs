@@ -5,7 +5,6 @@
 //! le jeu initial livré avec l'application.
 
 use crate::date::Date;
-use crate::impot::{Bareme, IrParams, LepParams, Tranche};
 use crate::money::Money;
 use crate::rate::Rate;
 
@@ -38,8 +37,12 @@ pub struct LivretParams {
     pub plafond: Money,
 }
 
-/// Jeu de paramètres embarqué, vérifié le 23/11/2026.
-/// Sources : service-public.gouv.fr (A15818, A18045, A18261), BOFiP BOI-IR-LIQ-20-20-20/30.
+/// Jeu de paramètres embarqué, vérifié le 25/11/2026.
+/// Sources : service-public.gouv.fr (F2365, A15818, A18000, A18045, A18261), Banque de France (rapports annuels
+/// sur l'épargne réglementée 2022 à 2025, communiqué du 14 janvier 2022), barèmes IPP (historique du Livret A).
+///
+/// Les taux sont connus depuis le 1er février 2020 (entrée en vigueur de la formule de calcul actuelle) :
+/// une opération plus ancienne est refusée à la saisie.
 pub mod embarque {
     use super::*;
 
@@ -47,8 +50,18 @@ pub mod embarque {
         Rate::parse_percent(s).expect("taux codé en dur invalide")
     }
 
+    /// Première date à partir de laquelle les taux des trois livrets sont connus.
+    pub fn debut() -> Date {
+        Date::ymd(2020, 2, 1)
+    }
+
     fn taux_livret_a() -> Series<Rate> {
         Series::new(vec![
+            (Date::ymd(2020, 2, 1), pct("0,50")),
+            (Date::ymd(2022, 2, 1), pct("1,00")),
+            (Date::ymd(2022, 8, 1), pct("2,00")),
+            (Date::ymd(2023, 2, 1), pct("3,00")),
+            (Date::ymd(2025, 2, 1), pct("2,40")),
             (Date::ymd(2025, 8, 1), pct("1,70")),
             (Date::ymd(2026, 2, 1), pct("1,50")),
             (Date::ymd(2026, 8, 1), pct("1,70")),
@@ -67,41 +80,18 @@ pub mod embarque {
     pub fn lep() -> LivretParams {
         LivretParams {
             taux: Series::new(vec![
+                (Date::ymd(2020, 2, 1), pct("1,00")),
+                (Date::ymd(2022, 2, 1), pct("2,20")),
+                (Date::ymd(2022, 8, 1), pct("4,60")),
+                (Date::ymd(2023, 2, 1), pct("6,10")),
+                (Date::ymd(2023, 8, 1), pct("6,00")),
+                (Date::ymd(2024, 2, 1), pct("5,00")),
+                (Date::ymd(2024, 8, 1), pct("4,00")),
+                (Date::ymd(2025, 2, 1), pct("3,50")),
                 (Date::ymd(2025, 8, 1), pct("2,70")),
                 (Date::ymd(2026, 2, 1), pct("2,50")),
             ]),
             plafond: Money::from_euros(10_000),
-        }
-    }
-
-    /// Plafonds de RFR pour le LEP en 2026 (métropole).
-    pub fn lep_rfr_2026() -> LepParams {
-        LepParams {
-            rfr_1_part: Money::from_euros(23_028),
-            rfr_demi_part_supp: Money::from_euros(6_149),
-        }
-    }
-
-    /// Impôt 2026 sur les revenus 2025 (loi n° 2026-103 du 19 février 2026).
-    pub fn ir_revenus_2025() -> IrParams {
-        let t = |seuil: i64, taux: &str| Tranche { seuil: Money::from_euros(seuil), taux: pct(taux) };
-        IrParams {
-            bareme: Bareme::new(vec![
-                t(0, "0"),
-                t(11_600, "11"),
-                t(29_579, "30"),
-                t(84_577, "41"),
-                t(181_917, "45"),
-            ])
-            .expect("barème codé en dur invalide"),
-            qf_plafond_demi_part: Money::from_euros(1_807),
-            // À renseigner depuis le BOFiP avant d'activer le cas « parent isolé ».
-            qf_plafond_parent_isole_1er_enfant: None,
-            decote_seuil_seul: Money::from_euros(1_982),
-            decote_seuil_couple: Money::from_euros(3_277),
-            decote_plafond_seul: Money::from_euros(897),
-            decote_plafond_couple: Money::from_euros(1_483),
-            decote_coeff: pct("45,25"),
         }
     }
 }
@@ -115,6 +105,19 @@ mod tests {
         let p = embarque::livret_a();
         assert_eq!(p.taux.at(Date::ymd(2026, 7, 31)), Some(&Rate::from_micro(15_000)));
         assert_eq!(p.taux.at(Date::ymd(2026, 8, 1)), Some(&Rate::from_micro(17_000)));
-        assert_eq!(p.taux.at(Date::ymd(2024, 1, 1)), None);
+        assert_eq!(p.taux.at(Date::ymd(2024, 1, 1)), Some(&Rate::from_micro(30_000)));
+        assert_eq!(p.taux.at(Date::ymd(2020, 1, 31)), None);
+    }
+
+    #[test]
+    fn taux_connus_depuis_le_debut_pour_les_trois_livrets() {
+        for p in [embarque::livret_a(), embarque::ldds(), embarque::lep()] {
+            assert!(p.taux.at(embarque::debut()).is_some());
+            assert!(p.taux.at(Date::ymd(embarque::debut().year(), 1, 31)).is_none());
+        }
+        // Historique du LEP : 6,1 % au premier semestre 2023, 4 % au second semestre 2024.
+        let lep = embarque::lep();
+        assert_eq!(lep.taux.at(Date::ymd(2023, 5, 1)), Some(&Rate::from_micro(61_000)));
+        assert_eq!(lep.taux.at(Date::ymd(2024, 9, 1)), Some(&Rate::from_micro(40_000)));
     }
 }

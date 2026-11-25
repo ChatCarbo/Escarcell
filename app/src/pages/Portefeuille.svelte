@@ -1,14 +1,10 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { api, PAYS, symboleDevise } from '../lib/api.js';
+  import { api, PAYS } from '../lib/api.js';
   import { exporterCsv, eurosCsv, microCsv } from '../lib/export.js';
   import { euros, pct, microVersTexte, versMicro, aujourdHui } from '../lib/format.js';
   import Donut from '../lib/Donut.svelte';
   import Graphique from '../lib/Graphique.svelte';
-
-  /** enveloppe : 'PEA' ou 'CTO' */
-  let { enveloppe } = $props();
-  const estPea = $derived(enveloppe === 'PEA');
 
   const PALETTE = ['#10B981', '#38BDF8', '#FBBF24', '#0284C7', '#34D399', '#F97316', '#8B5CF6'];
 
@@ -24,53 +20,77 @@
   let apercu = $state(null); // { symbole, nom } : titre recherché, pas encore détenu
   let evenements = $state([]);
   let nouvelEvt = $state({ date: '', note: '' });
-  let delai;
-
-  const ligneDetail = $derived(pf?.lignes.find((l) => l.symbole === detail) ?? null);
-
-  // Recherche au fil de la frappe (après 300 ms sans frappe).
-  function chercher() {
-    clearTimeout(delai);
-    choisi = null;
-    const q = recherche.trim();
-    if (q.length < 2) return (resultats = []);
-    delai = setTimeout(async () => {
-      enCours = true;
-      try {
-        resultats = await api.chercherTitres(q, enveloppe);
-      } catch (e) {
-        erreurs = [String(e)];
-      } finally {
-        enCours = false;
-      }
-    }, 300);
-  }
-
-  function choisir(t) {
-    choisi = t;
-    resultats = [];
-    recherche = `${t.nom} (${t.symbole})`;
-    detail = null;
-    apercu = { symbole: t.symbole, nom: t.nom, devise: t.devise };
-  }
   let edition = $state(null); // { id, quantite, pru, pays }
   let coursManuel = $state(null); // { symbole, valeur }
+  let aSupprimer = $state(null);
+  let messageExport = $state('');
+  let delai;
   let minuterie;
+  let numeroRecherche = 0; // ignore les réponses d'une recherche dépassée par une frappe plus récente
 
-  const fmt = (micro, max = 4) => (micro ?? null) === null ? '—' : (micro / 1e6).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: max });
+  const ligneDetail = $derived(pf?.lignes.find((l) => l.symbole === detail) ?? null);
+  const evtsLigne = $derived(evenements.filter((e) => e.symbole === detail && e.date >= aujourdHui()));
+  const parts = $derived(
+    (pf?.lignes ?? []).map((l, i) => ({ cle: String(l.id), libelle: l.nom, montant_cents: l.valeur_cents, couleur: PALETTE[i % PALETTE.length] })),
+  );
+
+  const fmt = (micro, max = 4) => ((micro ?? null) === null ? '—' : (micro / 1e6).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: max }));
   const heure = (s) => (s ? new Date(s * 1000).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '');
   const jourFr = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
   const signe = (v) => (v > 0 ? '+' : '');
   const FREQUENCE = { 1: 'annuel', 2: 'semestriel', 3: 'en 3 fois', 4: 'trimestriel', 12: 'mensuel' };
 
-  let parts = $derived(
-    (pf?.lignes ?? []).map((l, i) => ({ cle: String(l.id), libelle: l.nom, montant_cents: l.valeur_cents, couleur: PALETTE[i % PALETTE.length] })),
-  );
+  /** Exécute une commande et affiche son erreur éventuelle au lieu de la laisser se perdre. */
+  async function essayer(action) {
+    try {
+      return await action();
+    } catch (e) {
+      erreurs = [String(e)];
+      return undefined;
+    }
+  }
+
+  // Recherche au fil de la frappe (après 300 ms sans frappe).
+  function chercher() {
+    clearTimeout(delai);
+    choisi = null;
+    const numero = ++numeroRecherche;
+    const q = recherche.trim();
+    if (q.length < 2) {
+      resultats = [];
+      enCours = false;
+      return;
+    }
+    delai = setTimeout(async () => {
+      enCours = true;
+      try {
+        const r = await api.chercherTitres(q);
+        if (numero === numeroRecherche) resultats = r;
+      } catch (e) {
+        if (numero === numeroRecherche) erreurs = [String(e)];
+      } finally {
+        if (numero === numeroRecherche) enCours = false;
+      }
+    }, 300);
+  }
+
+  function choisir(t) {
+    numeroRecherche++; // une recherche encore en cours ne doit pas rouvrir la liste
+    clearTimeout(delai);
+    enCours = false;
+    resultats = [];
+    detail = null;
+    choisi = t;
+    recherche = `${t.nom} (${t.symbole})`;
+    apercu = { symbole: t.symbole, nom: t.nom };
+  }
 
   async function actualiser() {
+    // Pas de requête si une actualisation est déjà en cours ou si le portefeuille est vide.
+    if (chargement || !pf?.lignes.length) return;
     chargement = true;
     try {
-      const r = await api.actualiserCours(enveloppe);
+      const r = await api.actualiserCours();
       pf = r.portefeuille;
       erreurs = r.erreurs;
     } catch (e) {
@@ -81,39 +101,43 @@
   }
 
   async function charger() {
-    pf = null;
-    detail = null;
-    apercu = null;
     erreurs = [];
-    pf = await api.positions(enveloppe);
-    evenements = await api.evenements();
-    if (pf.lignes.length) actualiser();
+    try {
+      pf = await api.positions();
+      evenements = await api.evenements();
+    } catch (e) {
+      erreurs = [String(e)];
+      return;
+    }
+    actualiser();
   }
 
-  // Recharge quand on passe du PEA au CTO.
-  $effect(() => {
-    enveloppe;
-    charger();
-  });
-
   onMount(() => {
+    charger();
     minuterie = setInterval(actualiser, 5 * 60 * 1000); // toutes les 5 minutes
   });
-  onDestroy(() => clearInterval(minuterie));
+  onDestroy(() => {
+    clearInterval(minuterie);
+    clearTimeout(delai);
+  });
 
   async function ajouter(ev) {
     ev.preventDefault();
+    if (chargement) return;
     erreurs = [];
     const quantite_micro = versMicro(saisie.quantite);
     const pru_micro = versMicro(saisie.pru);
     if (!choisi) return (erreurs = ['Cherchez puis sélectionnez un titre dans la liste.']);
-    if (!quantite_micro || pru_micro === null) return (erreurs = ['Renseignez la quantité et le PRU.']);
+    if (!quantite_micro || quantite_micro <= 0 || pru_micro === null || pru_micro < 0) {
+      return (erreurs = ['Renseignez une quantité positive et le PRU.']);
+    }
     chargement = true;
     try {
-      pf = await api.ajouterPosition(enveloppe, { identifiant: choisi.isin ?? choisi.symbole, symbole: choisi.symbole, nom: choisi.nom, quantite_micro, pru_micro });
+      const t = choisi;
+      pf = await api.ajouterPosition({ identifiant: t.isin ?? t.symbole, symbole: t.symbole, nom: t.nom, quantite_micro, pru_micro });
       saisie = { quantite: '', pru: '' };
       recherche = '';
-      detail = choisi.symbole;
+      detail = t.symbole;
       apercu = null;
       choisi = null;
     } catch (e) {
@@ -126,80 +150,73 @@
   async function enregistrerEdition() {
     const q = versMicro(edition.quantite);
     const p = versMicro(edition.pru);
-    if (!q || p === null) return (erreurs = ['Quantité et PRU invalides.']);
-    try {
-      pf = await api.modifierPosition(enveloppe, edition.id, q, p, edition.pays || null);
+    if (!q || q <= 0 || p === null || p < 0) return (erreurs = ['Quantité et PRU invalides.']);
+    const r = await essayer(() => api.modifierPosition(edition.id, q, p, edition.pays || null));
+    if (r) {
+      pf = r;
       edition = null;
-    } catch (e) {
-      erreurs = [String(e)];
     }
   }
 
   // Suppression en deux clics (les boîtes de dialogue du navigateur ne sont pas fiables dans Tauri).
-  let aSupprimer = $state(null);
   async function supprimer(l) {
     if (aSupprimer !== l.id) return (aSupprimer = l.id);
-    pf = await api.supprimerPosition(enveloppe, l.id);
     aSupprimer = null;
-    if (detail === l.symbole) detail = null;
+    const r = await essayer(() => api.supprimerPosition(l.id));
+    if (r) {
+      pf = r;
+      if (detail === l.symbole && !r.lignes.some((x) => x.symbole === l.symbole)) detail = null;
+    }
   }
 
   async function enregistrerCoursManuel() {
     const c = versMicro(coursManuel.valeur);
-    if (!c) return (erreurs = ['Cours invalide.']);
-    pf = await api.saisirCours(enveloppe, coursManuel.symbole, c);
-    coursManuel = null;
+    if (!c || c <= 0) return (erreurs = ['Cours invalide.']);
+    const r = await essayer(() => api.saisirCours(coursManuel.symbole, c));
+    if (r) {
+      pf = r;
+      coursManuel = null;
+    }
   }
 
   async function ajouterAg(ev) {
     ev.preventDefault();
     if (!nouvelEvt.date) return (erreurs = ["Indiquez la date de l'assemblée générale."]);
-    try {
-      evenements = await api.ajouterEvenement({ symbole: detail, type: 'AG', date: nouvelEvt.date, note: nouvelEvt.note || null });
+    const r = await essayer(() => api.ajouterEvenement({ symbole: detail, type: 'AG', date: nouvelEvt.date, note: nouvelEvt.note || null }));
+    if (r) {
+      evenements = r;
       nouvelEvt = { date: '', note: '' };
-    } catch (e) {
-      erreurs = [String(e)];
     }
   }
 
   async function supprimerEvt(id) {
-    evenements = await api.supprimerEvenement(id);
+    const r = await essayer(() => api.supprimerEvenement(id));
+    if (r) evenements = r;
   }
 
-  // PRU converti dans la devise de cotation, pour la ligne « Mon PRU » du graphique (au taux du jour).
-  const pruDevise = (l) => (l.devise === 'EUR' ? l.pru_micro : l.taux_change_micro ? Math.round((l.pru_micro * l.taux_change_micro) / 1e6) : null);
-
-  let messageExport = $state('');
   async function exporter() {
     messageExport = '';
-    const entetes = ['Titre', 'Symbole', 'ISIN', 'Pays', 'Devise', 'Quantité', 'PRU (€)', 'Cours (devise)', 'Cours (€)', 'Valeur (€)', 'Investi (€)',
-      'Plus-value (€)', 'Plus-value (%)', ...(estPea ? [] : ['Impôt sur la plus-value (€)', 'Plus-value nette (€)']),
-      'Variation 1 an (%)', 'Dividende annuel / action (devise)', 'Rendement (%)', 'Dividende brut annuel (€)', 'Retenue à la source (%)',
-      'Dividende net annuel (€)', 'Prochain détachement estimé'];
+    if (!pf?.lignes.length) return;
+    const entetes = ['Titre', 'Symbole', 'ISIN', 'Pays', 'Quantité', 'PRU (€)', 'Cours (€)', 'Valeur (€)', 'Investi (€)',
+      'Plus-value (€)', 'Plus-value (%)', 'Variation 1 an (%)', 'Dividende annuel / action (€)', 'Rendement (%)',
+      'Dividende brut annuel (€)', 'Retenue à la source (%)', 'Dividende net annuel (€)', 'Prochain détachement estimé'];
     const lignes = pf.lignes.map((l) => [
-      l.nom, l.symbole, l.isin ?? '', l.pays ?? '', l.devise, microCsv(l.quantite_micro), microCsv(l.pru_micro), microCsv(l.cours_micro),
-      microCsv(l.cours_eur_micro), eurosCsv(l.valeur_cents), eurosCsv(l.investi_cents), eurosCsv(l.pv_cents), microCsv(l.pv_micro * 100, 2),
-      ...(estPea ? [] : [eurosCsv(l.impot_pv_cents), eurosCsv(l.pv_nette_cents)]),
+      l.nom, l.symbole, l.isin ?? '', l.pays ?? '', microCsv(l.quantite_micro), microCsv(l.pru_micro), microCsv(l.cours_micro),
+      eurosCsv(l.valeur_cents), eurosCsv(l.investi_cents), eurosCsv(l.pv_cents), microCsv(l.pv_micro * 100, 2),
       microCsv(l.variation_un_an_micro === null ? null : l.variation_un_an_micro * 100, 2), microCsv(l.div_par_action_micro),
       microCsv(l.div_rendement_micro === null ? null : l.div_rendement_micro * 100, 2), eurosCsv(l.div_brut_cents),
       microCsv(l.retenue_micro * 100, 3), eurosCsv(l.div_net_cents), l.div_prochain_estime ?? '',
     ]);
-    lignes.push(['Total', '', '', '', 'EUR', '', '', '', '', eurosCsv(pf.valeur_cents), eurosCsv(pf.investi_cents), eurosCsv(pf.pv_cents),
-      microCsv(pf.pv_micro * 100, 2), ...(estPea ? [] : [eurosCsv(pf.impot_pv_cents), eurosCsv(pf.pv_nette_cents)]), '', '',
-      microCsv(pf.div_rendement_micro * 100, 2), eurosCsv(pf.div_brut_cents), '', eurosCsv(pf.div_net_cents), '']);
-    try {
-      const chemin = await exporterCsv(`escarcelle-${enveloppe.toLowerCase()}`, entetes, lignes);
-      if (chemin) messageExport = `Export enregistré : ${chemin}`;
-    } catch (e) {
-      erreurs = [String(e)];
-    }
+    lignes.push(['Total', '', '', '', '', '', '', eurosCsv(pf.valeur_cents), eurosCsv(pf.investi_cents), eurosCsv(pf.pv_cents),
+      microCsv(pf.pv_micro * 100, 2), '', '', microCsv(pf.div_rendement_micro * 100, 2), eurosCsv(pf.div_brut_cents), '',
+      eurosCsv(pf.div_net_cents), '']);
+    const chemin = await essayer(() => exporterCsv('escarcelle-pea', entetes, lignes));
+    if (chemin) messageExport = `Export enregistré : ${chemin}`;
   }
-
-  const evtsLigne = $derived(evenements.filter((e) => e.symbole === detail && e.date >= aujourdHui()));
 </script>
 
 <header class="entete">
-  <h1>{estPea ? 'PEA' : 'Compte-titres (CTO)'}</h1>
+  <h1>PEA</h1>
   <div class="boutons">
     <button onclick={exporter} disabled={!pf?.lignes.length}>Exporter en CSV</button>
     <button onclick={actualiser} disabled={chargement}>{chargement ? 'Actualisation…' : 'Actualiser les cours'}</button>
@@ -220,15 +237,7 @@
       <strong class:positif={pf.pv_cents > 0} class:negatif={pf.pv_cents < 0}>{signe(pf.pv_cents)}{euros(pf.pv_cents)}</strong>
       <small class:positif={pf.pv_micro > 0} class:negatif={pf.pv_micro < 0}>{signe(pf.pv_micro)}{pct(pf.pv_micro)}</small>
     </div>
-    {#if estPea}
-      <div class="kpi"><span>Impôt</span><strong>0 €</strong><small class="discret">tant que l'argent reste dans le PEA</small></div>
-    {:else}
-      <div class="kpi">
-        <span>Après flat tax (31,4 %)</span>
-        <strong class:positif={pf.pv_nette_cents > 0} class:negatif={pf.pv_nette_cents < 0}>{signe(pf.pv_nette_cents)}{euros(pf.pv_nette_cents)}</strong>
-        <small class="discret">si tout était vendu aujourd'hui</small>
-      </div>
-    {/if}
+    <div class="kpi"><span>Impôt</span><strong>0 €</strong><small class="discret">tant que l'argent reste dans le PEA</small></div>
   </div>
 
   {#if pf.lignes.length}
@@ -236,7 +245,7 @@
       <div class="kpi"><span>Dividendes annuels bruts</span><strong>{euros(pf.div_brut_cents)}</strong></div>
       <div class="kpi">
         <span>Dividendes annuels nets</span><strong class="positif">{euros(pf.div_net_cents)}</strong>
-        <small class="discret">{estPea ? 'après retenues étrangères' : 'après retenues, flat tax et crédit d\'impôt'}</small>
+        <small class="discret">après retenues étrangères</small>
       </div>
       <div class="kpi"><span>Rendement des dividendes</span><strong>{pct(pf.div_rendement_micro)}</strong><small class="discret">brut, sur la valeur actuelle</small></div>
       <div class="kpi">
@@ -279,11 +288,8 @@
                   <button class="discret" onclick={enregistrerCoursManuel}>OK</button>
                   <button class="discret" onclick={() => (coursManuel = null)}>✕</button>
                 {:else if l.cours_micro !== null}
-                  <span title="{l.cours_source} · {heure(l.cours_horodatage)}">{fmt(l.cours_micro)}{l.devise !== 'EUR' ? ` ${symboleDevise(l.devise)}` : ''}</span>
-                  {#if l.devise !== 'EUR'}
-                    <div class="discret petit">{l.cours_eur_micro !== null ? `≈ ${fmt(l.cours_eur_micro, 2)} €` : 'taux de change manquant'}</div>
-                  {/if}
-                  <div class="discret petit">{heure(l.cours_horodatage)}</div>
+                  <span title="{l.cours_source} · {heure(l.cours_horodatage)}">{fmt(l.cours_micro)}</span>
+                  <div class="discret petit">{heure(l.cours_horodatage)}{l.cours_source && l.cours_source !== 'Yahoo Finance' ? ` · ${l.cours_source}` : ''}</div>
                 {:else}
                   <button class="discret" onclick={() => (coursManuel = { symbole: l.symbole, valeur: '' })}>saisir</button>
                 {/if}
@@ -320,23 +326,22 @@
     <form class="ajout" onsubmit={ajouter}>
       <h3>Ajouter une ligne</h3>
       <div class="recherche">
-        <input bind:value={recherche} oninput={chercher} placeholder="Nom, mnémonique ou ISIN : LVMH, MC, FR0000121014, MSCI World…" />
+        <input bind:value={recherche} oninput={chercher}
+          placeholder="Nom, mnémonique ou ISIN : LVMH, MC, FR0000121014, MSCI World…" />
         {#if enCours}<span class="discret petit">Recherche…</span>{/if}
         {#if resultats.length}
           <ul class="resultats-recherche">
-            {#each resultats as t (t.symbole)}
+            {#each resultats as t}
               <li>
                 <button type="button" onclick={() => choisir(t)}>
-                  <span><b>{t.nom}</b> <span class="discret">{t.symbole} · {t.place} · {t.type}{t.devise !== 'EUR' ? ` · ${t.devise}` : ''}</span></span>
-                  {#if estPea}
-                    <span class="badge" class:positif={t.eligibilite_pea === 'probable'} class:negatif={t.eligibilite_pea.startsWith('non')}>PEA : {t.eligibilite_pea}</span>
-                  {/if}
+                  <span><b>{t.nom}</b> <span class="discret">{t.symbole} · {t.place} · {t.type}</span></span>
+                  <span class="badge" class:positif={t.eligibilite_pea === 'probable'} class:negatif={t.eligibilite_pea.startsWith('non')}>PEA : {t.eligibilite_pea}</span>
                 </button>
               </li>
             {/each}
           </ul>
         {:else if recherche.trim().length >= 2 && !enCours && !choisi}
-          <p class="discret petit">{estPea ? 'Aucun titre coté en euros trouvé.' : 'Aucun titre trouvé.'}</p>
+          <p class="discret petit">Aucun titre coté en euros trouvé.</p>
         {/if}
       </div>
       {#if choisi}
@@ -345,23 +350,13 @@
           <label>PRU en euros<input bind:value={saisie.pru} inputmode="decimal" placeholder="Prix de revient affiché par la banque" /></label>
           <button type="submit" class="principal" disabled={chargement}>Ajouter {choisi.nom}</button>
         </div>
-        {#if choisi.devise !== 'EUR'}
-          <p class="discret petit">
-            Titre coté en {choisi.devise} : saisissez le PRU <b>en euros</b>, change et frais compris, tel que votre banque l'affiche.
-            Le cours est converti en euros au taux de change du jour ; la plus-value obtenue est celle qui sera imposée en France.
-          </p>
-        {/if}
       {/if}
     </form>
     <p class="discret petit">
-      {#if estPea}
-        Actions et ETF cotés en euros sur les places européennes. L'éligibilité au PEA dépend du pays de la société
-        (Union européenne ou EEE) et, pour un ETF, de sa composition : elle est indiquée à titre indicatif, vérifiez-la auprès de votre banque.
-      {:else}
-        Actions et ETF cotés en Europe, aux États-Unis, en Suisse, à Londres, dans les pays nordiques, à Toronto, Tokyo, Hong Kong et Sydney.
-        Le PRU est saisi en euros, frais de courtage et de change compris. Les cours en devises sont convertis au taux du jour (Yahoo Finance).
-      {/if}
-      Cours Yahoo Finance, en général différés d'environ 15 minutes. Cliquez sur une ligne pour voir sa fiche et sa courbe.
+      Actions et ETF cotés en euros sur les places européennes. L'éligibilité au PEA dépend du pays de la société
+      (Union européenne ou EEE) et, pour un ETF, de sa composition : elle est indiquée à titre indicatif, vérifiez-la auprès de votre banque.
+      Cours Yahoo Finance, en général différés d'environ 15 minutes.
+      Cliquez sur une ligne pour voir sa fiche et sa courbe.
     </p>
   </section>
 
@@ -371,7 +366,7 @@
       <h3>{l.nom} — dividendes et événements</h3>
       {#if l.div_par_action_micro > 0}
         <div class="fiche-grille">
-          <div><span>Dividende annuel / action</span><b>{fmt(l.div_par_action_micro, 2)} {symboleDevise(l.devise)}</b><small>{FREQUENCE[l.div_frequence] ?? `${l.div_frequence} versements`}</small></div>
+          <div><span>Dividende annuel / action</span><b>{fmt(l.div_par_action_micro, 2)} €</b><small>{FREQUENCE[l.div_frequence] ?? `${l.div_frequence} versements`}</small></div>
           <div><span>Rendement</span><b>{l.div_rendement_micro ? pct(l.div_rendement_micro) : '—'}</b></div>
           <div><span>Croissance</span><b>{l.div_croissance_micro === null ? '—' : `${signe(l.div_croissance_micro)}${pct(l.div_croissance_micro, 1)} / an`}</b></div>
           <div><span>Prochain détachement</span><b>{jourFr(l.div_prochain_estime)}</b><small>estimé d'après l'an dernier</small></div>
@@ -383,14 +378,10 @@
               <td>
                 Retenue à la source {l.pays ? `(${PAYS[l.pays] ?? l.pays}, ${pct(l.retenue_micro, 2)})` : ''}
                 {#if !l.retenue_connue}<span class="negatif petit"> — pays inconnu : indiquez-le avec « Modifier »</span>{/if}
-                {#if estPea && l.retenue_micro > 0}<div class="discret petit">Perdue dans un PEA : aucun impôt français sur lequel l'imputer.</div>{/if}
+                {#if l.retenue_micro > 0}<div class="discret petit">Perdue dans un PEA : aucun impôt français sur lequel l'imputer.</div>{/if}
               </td>
               <td class="nombre negatif">−{euros(l.div_retenue_cents)}</td>
             </tr>
-            {#if !estPea}
-              <tr><td>Impôt sur le revenu 12,8 % <span class="discret petit">(après crédit d'impôt de {euros(l.div_credit_cents)})</span></td><td class="nombre negatif">−{euros(l.div_impot_cents)}</td></tr>
-              <tr><td>Prélèvements sociaux 18,6 %</td><td class="nombre negatif">−{euros(l.div_ps_cents)}</td></tr>
-            {/if}
             <tr class="total"><td>Dividende net encaissé par an</td><td class="nombre positif">{euros(l.div_net_cents)}</td></tr>
           </tbody>
         </table>
@@ -417,9 +408,9 @@
         journal-officiel.gouv.fr) et dans l'espace « Actionnaires » de leur site. Une alerte apparaît sur le tableau de bord 45 jours avant.
       </p>
     </section>
-    <Graphique symbole={l.symbole} nom={l.nom} pru={pruDevise(l)} devise={l.devise} />
+    {#key l.symbole}<Graphique symbole={l.symbole} nom={l.nom} pru={l.pru_micro} />{/key}
   {:else if apercu}
-    <Graphique symbole={apercu.symbole} nom={apercu.nom} devise={apercu.devise} />
+    {#key apercu.symbole}<Graphique symbole={apercu.symbole} nom={apercu.nom} />{/key}
   {/if}
 
   {#if parts.length > 1}

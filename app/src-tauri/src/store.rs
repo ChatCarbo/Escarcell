@@ -12,7 +12,8 @@ pub enum StoreError {
     Sql(#[from] rusqlite::Error),
 }
 
-const MIGRATIONS: &[&str] = &[r#"
+const MIGRATIONS: &[&str] = &[
+    r#"
 CREATE TABLE comptes (
     id            INTEGER PRIMARY KEY,
     nom           TEXT NOT NULL,
@@ -52,7 +53,8 @@ CREATE TABLE parametres (
     cle    TEXT PRIMARY KEY,
     valeur TEXT NOT NULL
 );
-"#, r#"
+"#,
+    r#"
 -- V1 du PEA : suivi de lignes (quantité, PRU), sans journal d'opérations.
 CREATE TABLE positions (
     id             INTEGER PRIMARY KEY,
@@ -65,7 +67,8 @@ CREATE TABLE positions (
     cree_le        TEXT NOT NULL DEFAULT (datetime('now'))
 );
 ALTER TABLE cours ADD COLUMN horodatage INTEGER;
-"#, r#"
+"#,
+    r#"
 -- CTO, dividendes, alertes.
 ALTER TABLE positions ADD COLUMN pays TEXT;
 CREATE TABLE dividendes (
@@ -86,10 +89,33 @@ CREATE TABLE evenements (
     date    TEXT NOT NULL,
     note    TEXT
 );
-"#, r#"
+"#,
+    r#"
 -- Devise de cotation des lignes (CTO : dollar, franc suisse, livre…). Le PRU reste en euros.
 ALTER TABLE positions ADD COLUMN devise TEXT NOT NULL DEFAULT 'EUR';
-"#];
+"#,
+    r#"
+-- Liste Euronext des sociétés éligibles au PEA-PME.
+CREATE TABLE pea_pme (
+    isin  TEXT PRIMARY KEY,
+    nom   TEXT NOT NULL,
+    mnemo TEXT
+);
+"#,
+    r#"
+-- Version 0.3 : le compte-titres et le PEA-PME sont supprimés. Seul le PEA est suivi.
+DELETE FROM positions WHERE enveloppe <> 'PEA';
+DROP TABLE IF EXISTS pea_pme;
+DELETE FROM parametres WHERE cle = 'pea_pme.maj';
+DELETE FROM parametres WHERE cle IN
+    ('retenue.US', 'retenue.CH', 'retenue.GB', 'retenue.CA', 'retenue.JP', 'retenue.HK', 'retenue.AU');
+-- Taux de change (EURUSD=X…) devenus inutiles.
+DELETE FROM cours WHERE isin LIKE 'EUR%=X';
+DELETE FROM evenements WHERE symbole NOT IN (SELECT symbole FROM positions);
+DELETE FROM dividendes WHERE symbole NOT IN (SELECT symbole FROM positions);
+DELETE FROM infos_titres WHERE symbole NOT IN (SELECT symbole FROM positions);
+"#,
+];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Compte {
@@ -120,10 +146,10 @@ pub struct Operation {
     pub libelle: Option<String>,
 }
 
+/// Ligne du PEA.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Position {
     pub id: i64,
-    pub enveloppe: String,
     pub isin: Option<String>,
     pub symbole: String,
     pub nom: String,
@@ -131,8 +157,6 @@ pub struct Position {
     pub pru_micro: i64,
     /// Pays de la société (code ISO), pour la retenue à la source sur les dividendes.
     pub pays: Option<String>,
-    /// Devise de cotation (EUR, USD, CHF, GBP…). Le PRU est toujours en euros.
-    pub devise: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -299,15 +323,6 @@ impl Store {
         Ok(())
     }
 
-    pub fn enregistrer_cours(&self, isin: &str, date: &str, cours_micro: i64, source: &str) -> Result<(), StoreError> {
-        self.conn.execute(
-            "INSERT INTO cours (isin, date, cours_micro, source) VALUES (?1, ?2, ?3, ?4)
-             ON CONFLICT(isin, date) DO UPDATE SET cours_micro = excluded.cours_micro, source = excluded.source",
-            params![isin, date, cours_micro, source],
-        )?;
-        Ok(())
-    }
-
     /// Dernier cours connu d'un titre (clé : symbole de cotation, ou ISIN pour les anciennes saisies).
     pub fn dernier_cours(&self, cle: &str) -> Result<Option<DernierCours>, StoreError> {
         Ok(self
@@ -322,7 +337,13 @@ impl Store {
     }
 
     /// Enregistre un cours horodaté ; un seul cours conservé par jour et par titre.
-    pub fn enregistrer_cotation(&self, cle: &str, cours_micro: i64, horodatage: i64, source: &str) -> Result<(), StoreError> {
+    pub fn enregistrer_cotation(
+        &self,
+        cle: &str,
+        cours_micro: i64,
+        horodatage: i64,
+        source: &str,
+    ) -> Result<(), StoreError> {
         self.conn.execute(
             "INSERT INTO cours (isin, date, cours_micro, source, horodatage) VALUES (?1, date(?3, 'unixepoch'), ?2, ?4, ?3)
              ON CONFLICT(isin, date) DO UPDATE SET cours_micro = excluded.cours_micro, source = excluded.source,
@@ -332,21 +353,21 @@ impl Store {
         Ok(())
     }
 
-    pub fn positions(&self, enveloppe: &str) -> Result<Vec<Position>, StoreError> {
+    /// Lignes du PEA. Les colonnes `enveloppe` (toujours « PEA ») et `devise` (toujours « EUR ») sont
+    /// conservées dans la base pour la compatibilité des sauvegardes, mais ne sont plus lues.
+    pub fn positions(&self) -> Result<Vec<Position>, StoreError> {
         let mut st = self.conn.prepare(
-            "SELECT id, enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise FROM positions WHERE enveloppe = ?1 ORDER BY nom",
+            "SELECT id, isin, symbole, nom, quantite_micro, pru_micro, pays FROM positions WHERE enveloppe = 'PEA' ORDER BY nom, id",
         )?;
-        let rows = st.query_map([enveloppe], |r| {
+        let rows = st.query_map([], |r| {
             Ok(Position {
                 id: r.get(0)?,
-                enveloppe: r.get(1)?,
-                isin: r.get(2)?,
-                symbole: r.get(3)?,
-                nom: r.get(4)?,
-                quantite_micro: r.get(5)?,
-                pru_micro: r.get(6)?,
-                pays: r.get(7)?,
-                devise: r.get(8)?,
+                isin: r.get(1)?,
+                symbole: r.get(2)?,
+                nom: r.get(3)?,
+                quantite_micro: r.get(4)?,
+                pru_micro: r.get(5)?,
+                pays: r.get(6)?,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -354,13 +375,19 @@ impl Store {
 
     pub fn ajouter_position(&self, p: &Position) -> Result<i64, StoreError> {
         self.conn.execute(
-            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-            params![p.enveloppe, p.isin, p.symbole, p.nom, p.quantite_micro, p.pru_micro, p.pays, p.devise],
+            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise) VALUES ('PEA', ?1, ?2, ?3, ?4, ?5, ?6, 'EUR')",
+            params![p.isin, p.symbole, p.nom, p.quantite_micro, p.pru_micro, p.pays],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
 
-    pub fn modifier_position(&self, id: i64, quantite_micro: i64, pru_micro: i64, pays: Option<&str>) -> Result<(), StoreError> {
+    pub fn modifier_position(
+        &self,
+        id: i64,
+        quantite_micro: i64,
+        pru_micro: i64,
+        pays: Option<&str>,
+    ) -> Result<(), StoreError> {
         self.conn.execute(
             "UPDATE positions SET quantite_micro = ?2, pru_micro = ?3, pays = ?4 WHERE id = ?1",
             params![id, quantite_micro, pru_micro, pays],
@@ -368,31 +395,33 @@ impl Store {
         Ok(())
     }
 
-    /// Symboles détenus, toutes enveloppes confondues.
-    pub fn symboles_detenus(&self) -> Result<Vec<String>, StoreError> {
-        let mut st = self.conn.prepare("SELECT DISTINCT symbole FROM positions ORDER BY symbole")?;
-        let rows = st.query_map([], |r| r.get(0))?;
-        Ok(rows.collect::<Result<_, _>>()?)
-    }
-
     /// Remplace l'historique des dividendes d'un titre (date ISO, montant par action en millionièmes).
     pub fn remplacer_dividendes(&mut self, symbole: &str, versements: &[(String, i64)]) -> Result<(), StoreError> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM dividendes WHERE symbole = ?1", [symbole])?;
         for (date, montant) in versements {
-            tx.execute("INSERT OR REPLACE INTO dividendes (symbole, date, montant_micro) VALUES (?1, ?2, ?3)", params![symbole, date, montant])?;
+            tx.execute(
+                "INSERT OR REPLACE INTO dividendes (symbole, date, montant_micro) VALUES (?1, ?2, ?3)",
+                params![symbole, date, montant],
+            )?;
         }
         tx.commit()?;
         Ok(())
     }
 
     pub fn dividendes(&self, symbole: &str) -> Result<Vec<(String, i64)>, StoreError> {
-        let mut st = self.conn.prepare("SELECT date, montant_micro FROM dividendes WHERE symbole = ?1 ORDER BY date")?;
+        let mut st =
+            self.conn.prepare("SELECT date, montant_micro FROM dividendes WHERE symbole = ?1 ORDER BY date")?;
         let rows = st.query_map([symbole], |r| Ok((r.get(0)?, r.get(1)?)))?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
-    pub fn definir_infos_titre(&self, symbole: &str, cours_un_an_micro: Option<i64>, maj: i64) -> Result<(), StoreError> {
+    pub fn definir_infos_titre(
+        &self,
+        symbole: &str,
+        cours_un_an_micro: Option<i64>,
+        maj: i64,
+    ) -> Result<(), StoreError> {
         self.conn.execute(
             "INSERT INTO infos_titres (symbole, cours_un_an_micro, maj) VALUES (?1, ?2, ?3) \
              ON CONFLICT(symbole) DO UPDATE SET cours_un_an_micro = excluded.cours_un_an_micro, maj = excluded.maj",
@@ -405,7 +434,9 @@ impl Store {
     pub fn infos_titre(&self, symbole: &str) -> Result<Option<(Option<i64>, i64)>, StoreError> {
         Ok(self
             .conn
-            .query_row("SELECT cours_un_an_micro, maj FROM infos_titres WHERE symbole = ?1", [symbole], |r| Ok((r.get(0)?, r.get(1)?)))
+            .query_row("SELECT cours_un_an_micro, maj FROM infos_titres WHERE symbole = ?1", [symbole], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
             .optional()?)
     }
 
@@ -436,10 +467,7 @@ impl Store {
     }
 
     pub fn parametre(&self, cle: &str) -> Result<Option<String>, StoreError> {
-        Ok(self
-            .conn
-            .query_row("SELECT valeur FROM parametres WHERE cle = ?1", [cle], |r| r.get(0))
-            .optional()?)
+        Ok(self.conn.query_row("SELECT valeur FROM parametres WHERE cle = ?1", [cle], |r| r.get(0)).optional()?)
     }
 
     pub fn definir_parametre(&self, cle: &str, valeur: &str) -> Result<(), StoreError> {
@@ -490,24 +518,65 @@ mod tests {
         let pid = s
             .ajouter_position(&Position {
                 id: 0,
-                enveloppe: "PEA".into(),
                 isin: Some("FR001400U5Q4".into()),
                 symbole: "DCAM.PA".into(),
                 nom: "Amundi PEA Monde".into(),
                 quantite_micro: 100_000_000,
                 pru_micro: 5_500_000,
                 pays: None,
-                devise: "EUR".into(),
             })
             .unwrap();
         s.modifier_position(pid, 150_000_000, 5_600_000, Some("FR")).unwrap();
-        assert_eq!(s.positions("PEA").unwrap()[0].quantite_micro, 150_000_000);
-        assert_eq!(s.positions("PEA").unwrap()[0].pays.as_deref(), Some("FR"));
+        assert_eq!(s.positions().unwrap()[0].quantite_micro, 150_000_000);
+        assert_eq!(s.positions().unwrap()[0].pays.as_deref(), Some("FR"));
         let mut s = s;
         s.remplacer_dividendes("DCAM.PA", &[("2026-05-20".into(), 1_200_000)]).unwrap();
         assert_eq!(s.dividendes("DCAM.PA").unwrap().len(), 1);
-        s.ajouter_evenement(&Evenement { id: 0, symbole: "DCAM.PA".into(), type_: "AG".into(), date: "2027-05-12".into(), note: None }).unwrap();
+        s.ajouter_evenement(&Evenement {
+            id: 0,
+            symbole: "DCAM.PA".into(),
+            type_: "AG".into(),
+            date: "2027-05-12".into(),
+            note: None,
+        })
+        .unwrap();
         assert_eq!(s.evenements().unwrap()[0].type_, "AG");
+    }
+
+    /// Base de la version 0.2 avec des lignes de CTO et de PEA-PME : la migration ne garde que le PEA.
+    #[test]
+    fn migration_suppression_cto_et_pea_pme() {
+        let conn = Connection::open_in_memory().unwrap();
+        for sql in &MIGRATIONS[..5] {
+            conn.execute_batch(sql).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 5i64).unwrap();
+        conn.execute_batch(
+            "INSERT INTO positions (enveloppe, symbole, nom, quantite_micro, pru_micro, devise) VALUES
+                 ('PEA', 'MC.PA', 'LVMH', 1000000, 600000000, 'EUR'),
+                 ('CTO', 'NVDA', 'NVIDIA', 1000000, 100000000, 'USD'),
+                 ('PEA_PME', 'ALMDT.PA', 'Median', 1000000, 2000000, 'EUR');
+             INSERT INTO pea_pme VALUES ('FR0011049824', 'MEDIAN TECHNOLOGIES', 'ALMDT');
+             INSERT INTO parametres VALUES ('retenue.US', '150000'), ('retenue.DE', '263750'), ('pea_pme.maj', '2026-11-24');
+             INSERT INTO cours (isin, date, cours_micro, source) VALUES ('EURUSD=X', '2026-11-24', 1050000, 'Yahoo Finance');
+             INSERT INTO evenements (symbole, type, date) VALUES ('NVDA', 'AG', '2027-06-01'), ('MC.PA', 'AG', '2027-04-17');
+             INSERT INTO dividendes VALUES ('NVDA', '2026-09-01', 10000), ('MC.PA', '2026-04-28', 7500000);",
+        )
+        .unwrap();
+        let s = Store::initialiser(conn).unwrap();
+        let lignes = s.positions().unwrap();
+        assert_eq!(lignes.len(), 1);
+        assert_eq!(lignes[0].symbole, "MC.PA");
+        assert_eq!(s.parametre("retenue.US").unwrap(), None);
+        assert_eq!(s.parametre("retenue.DE").unwrap().as_deref(), Some("263750"));
+        assert_eq!(s.parametre("pea_pme.maj").unwrap(), None);
+        assert!(s.dernier_cours("EURUSD=X").unwrap().is_none());
+        assert_eq!(s.evenements().unwrap().len(), 1);
+        assert!(s.dividendes("NVDA").unwrap().is_empty());
+        assert_eq!(s.dividendes("MC.PA").unwrap().len(), 1);
+        let pea_pme: i64 =
+            s.conn.query_row("SELECT count(*) FROM sqlite_master WHERE name = 'pea_pme'", [], |r| r.get(0)).unwrap();
+        assert_eq!(pea_pme, 0);
     }
 
     #[test]

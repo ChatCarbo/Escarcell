@@ -1,57 +1,14 @@
-//! Dividendes et fiscalité des enveloppes PEA et CTO.
+//! Dividendes des lignes du PEA.
 //!
 //! - Retenue à la source prélevée par le pays de la société (déduit des deux premières lettres de l'ISIN).
 //! - **PEA** : pas d'impôt français tant que l'argent reste dans le plan ; la retenue étrangère n'est
 //!   imputable sur rien, elle est donc perdue.
-//! - **CTO** : prélèvement forfaitaire unique (12,8 % d'impôt + 18,6 % de prélèvements sociaux).
-//!   La retenue étrangère ouvre droit à un crédit d'impôt, limité à la part d'impôt français (12,8 %)
-//!   et au taux prévu par la convention fiscale (15 % en général) : en pratique `min(retenue, 12,8 %)`.
-//!   L'excédent de retenue n'est récupérable qu'en le réclamant au fisc étranger ; il est compté comme perdu.
+//!   Source : BOI-RPPM-RCM-40-50-30 (les crédits d'impôt conventionnels ne sont restitués que si les
+//!   revenus sont eux-mêmes imposables, ce qui n'est pas le cas des revenus de titres inscrits sur un PEA).
 //!
-//! Montants en centimes, taux en millionièmes, dividende par action en millionièmes de la devise de cotation.
+//! Montants en centimes, taux en millionièmes, dividende par action en millionièmes d'euro.
 
 use crate::{Date, Money, Price, Rate};
-
-/// Enveloppe fiscale d'une ligne d'actions.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Enveloppe {
-    Pea,
-    Cto,
-}
-
-impl Enveloppe {
-    pub fn code(self) -> &'static str {
-        match self {
-            Enveloppe::Pea => "PEA",
-            Enveloppe::Cto => "CTO",
-        }
-    }
-    pub fn depuis_code(s: &str) -> Option<Self> {
-        match s {
-            "PEA" => Some(Enveloppe::Pea),
-            "CTO" => Some(Enveloppe::Cto),
-            _ => None,
-        }
-    }
-}
-
-/// Paramètres fiscaux des revenus mobiliers.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Fiscalite {
-    /// Part impôt sur le revenu du prélèvement forfaitaire unique.
-    pub pfu_ir: Rate,
-    pub prelevements_sociaux: Rate,
-}
-
-impl Fiscalite {
-    /// Taux 2026 : 12,8 % + 18,6 % = 31,4 %.
-    pub fn v2026() -> Self {
-        Self { pfu_ir: Rate::from_micro(128_000), prelevements_sociaux: Rate::from_micro(186_000) }
-    }
-    pub fn pfu(&self) -> Rate {
-        Rate::from_micro(self.pfu_ir.micro() + self.prelevements_sociaux.micro())
-    }
-}
 
 /// Retenue à la source par défaut d'un pays (code ISO à 2 lettres), sur les dividendes versés à un
 /// résident français par un établissement qui n'applique pas le taux réduit de la convention.
@@ -74,21 +31,15 @@ pub fn retenue_par_defaut(pays: &str) -> Option<Rate> {
         "PT" => 250_000,
         "CZ" => 150_000,
         "SE" => 300_000,
-        // Hors PEA, utiles pour le CTO.
-        "US" => 150_000, // avec formulaire W-8BEN
-        "CH" => 350_000,
-        "GB" => 0,
-        "CA" => 250_000,
-        "JP" => 153_150,
-        "HK" => 0,
-        "AU" => 300_000, // dividendes non « franked »
+        // Taux standard de 5 % depuis le 1er janvier 2020 (Clearstream, fiche marché Grèce).
+        "GR" => 50_000,
         _ => return None,
     };
     Some(Rate::from_micro(micro))
 }
 
 /// Liste des pays connus, pour l'écran de réglage.
-pub const PAYS_CONNUS: [(&str, &str); 23] = [
+pub const PAYS_CONNUS: [(&str, &str); 17] = [
     ("FR", "France"),
     ("DE", "Allemagne"),
     ("AT", "Autriche"),
@@ -105,13 +56,7 @@ pub const PAYS_CONNUS: [(&str, &str); 23] = [
     ("PT", "Portugal"),
     ("CZ", "Tchéquie"),
     ("SE", "Suède"),
-    ("US", "États-Unis"),
-    ("CH", "Suisse"),
-    ("GB", "Royaume-Uni"),
-    ("CA", "Canada"),
-    ("JP", "Japon"),
-    ("HK", "Hong Kong"),
-    ("AU", "Australie"),
+    ("GR", "Grèce"),
 ];
 
 /// Pays d'une société d'après son ISIN.
@@ -120,55 +65,20 @@ pub fn pays_isin(isin: &str) -> Option<&str> {
     p.chars().all(|c| c.is_ascii_uppercase()).then_some(p)
 }
 
-/// Décomposition d'un dividende brut.
+/// Décomposition d'un dividende brut encaissé dans le PEA.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DividendeNet {
     pub brut: Money,
+    /// Impôt prélevé par le pays de la société, perdu dans un PEA.
     pub retenue_etrangere: Money,
-    /// Crédit d'impôt imputé sur l'impôt français (CTO seulement).
-    pub credit_impot: Money,
-    pub impot_francais: Money,
-    pub prelevements_sociaux: Money,
+    /// Ce qui arrive sur le compte espèces du PEA : brut − retenue. Aucun impôt français.
     pub net: Money,
 }
 
-/// Dividende net encaissé pour un montant brut, selon l'enveloppe et la retenue du pays.
-pub fn dividende_net(brut: Money, retenue: Rate, env: Enveloppe, f: &Fiscalite) -> DividendeNet {
+/// Dividende net encaissé dans le PEA pour un montant brut et la retenue prélevée par le pays.
+pub fn dividende_net(brut: Money, retenue: Rate) -> DividendeNet {
     let retenue_etrangere = retenue.apply(brut);
-    match env {
-        Enveloppe::Pea => DividendeNet {
-            brut,
-            retenue_etrangere,
-            credit_impot: Money::ZERO,
-            impot_francais: Money::ZERO,
-            prelevements_sociaux: Money::ZERO,
-            net: brut - retenue_etrangere,
-        },
-        Enveloppe::Cto => {
-            let taux_credit = Rate::from_micro(retenue.micro().min(f.pfu_ir.micro()));
-            let credit_impot = taux_credit.apply(brut);
-            let impot_francais = f.pfu_ir.apply(brut) - credit_impot;
-            let prelevements_sociaux = f.prelevements_sociaux.apply(brut);
-            DividendeNet {
-                brut,
-                retenue_etrangere,
-                credit_impot,
-                impot_francais,
-                prelevements_sociaux,
-                net: brut - retenue_etrangere - impot_francais - prelevements_sociaux,
-            }
-        }
-    }
-}
-
-/// Impôt dû si la plus-value latente était réalisée aujourd'hui.
-/// PEA : 0 (l'impôt n'intervient qu'au retrait, selon l'âge du plan). CTO : PFU sur la plus-value positive.
-pub fn impot_plus_value(plus_value: Money, env: Enveloppe, f: &Fiscalite) -> Money {
-    match env {
-        Enveloppe::Pea => Money::ZERO,
-        Enveloppe::Cto if plus_value.cents() > 0 => f.pfu().apply(plus_value),
-        Enveloppe::Cto => Money::ZERO,
-    }
+    DividendeNet { brut, retenue_etrangere, net: brut - retenue_etrangere }
 }
 
 /// Un versement de dividende par action (date de détachement).
@@ -195,7 +105,8 @@ pub struct SyntheseDividendes {
 /// Résume l'historique des dividendes (dates de détachement) à la date `aujourd_hui`.
 pub fn synthese(historique: &[Versement], aujourd_hui: Date) -> SyntheseDividendes {
     let il_y_a_un_an = aujourd_hui.plus_annees(-1);
-    let recents: Vec<&Versement> = historique.iter().filter(|v| v.date > il_y_a_un_an && v.date <= aujourd_hui).collect();
+    let recents: Vec<&Versement> =
+        historique.iter().filter(|v| v.date > il_y_a_un_an && v.date <= aujourd_hui).collect();
     let annuel = recents.iter().map(|v| v.montant.micro()).sum::<i64>();
     let prochain_estime = recents.iter().map(|v| v.date.plus_annees(1)).filter(|d| *d > aujourd_hui).min();
     let dernier = historique.iter().filter(|v| v.date <= aujourd_hui).max_by_key(|v| v.date).copied();
@@ -230,67 +141,30 @@ pub fn synthese(historique: &[Versement], aujourd_hui: Date) -> SyntheseDividend
 
 /// Rendement = dividende annuel / cours.
 pub fn rendement(annuel: Price, cours: Price) -> Option<Rate> {
-    (cours.micro() > 0).then(|| Rate::from_micro(crate::div_round(annuel.micro() as i128 * 1_000_000, cours.micro() as i128)))
+    (cours.micro() > 0)
+        .then(|| Rate::from_micro(crate::div_round(annuel.micro() as i128 * 1_000_000, cours.micro() as i128)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn eur(e: i64) -> Money {
-        Money::from_euros(e)
+    fn net(pays: &str) -> Money {
+        dividende_net(Money::from_euros(100), retenue_par_defaut(pays).unwrap()).net
     }
 
     #[test]
-    fn pea_france_sans_retenue() {
-        let d = dividende_net(eur(100), retenue_par_defaut("FR").unwrap(), Enveloppe::Pea, &Fiscalite::v2026());
-        assert_eq!(d.net, eur(100));
+    fn pea_retenue_perdue() {
+        assert_eq!(net("FR"), Money::from_euros(100));
+        assert_eq!(net("DE"), Money::from_cents(73_62));
+        assert_eq!(net("NL"), Money::from_euros(85));
     }
 
     #[test]
-    fn pea_allemagne_retenue_perdue() {
-        let d = dividende_net(eur(100), retenue_par_defaut("DE").unwrap(), Enveloppe::Pea, &Fiscalite::v2026());
-        assert_eq!(d.retenue_etrangere, Money::from_cents(26_38));
-        assert_eq!(d.net, Money::from_cents(73_62));
-    }
-
-    #[test]
-    fn cto_france_flat_tax() {
-        let d = dividende_net(eur(100), Rate::ZERO, Enveloppe::Cto, &Fiscalite::v2026());
-        assert_eq!(d.impot_francais, Money::from_cents(12_80));
-        assert_eq!(d.prelevements_sociaux, Money::from_cents(18_60));
-        assert_eq!(d.net, Money::from_cents(68_60));
-    }
-
-    #[test]
-    fn cto_allemagne_credit_limite_a_12_8() {
-        // 100 € brut : 26,38 retenus, crédit 12,80 = impôt français, PS 18,60 → net 55,02.
-        let d = dividende_net(eur(100), retenue_par_defaut("DE").unwrap(), Enveloppe::Cto, &Fiscalite::v2026());
-        assert_eq!(d.credit_impot, Money::from_cents(12_80));
-        assert_eq!(d.impot_francais, Money::ZERO);
-        assert_eq!(d.net, Money::from_cents(55_02));
-    }
-
-    #[test]
-    fn cto_pays_bas_credit_partiel() {
-        // Retenue 15 % : crédit 12,80, impôt français 0, PS 18,60 → net 66,40.
-        let d = dividende_net(eur(100), retenue_par_defaut("NL").unwrap(), Enveloppe::Cto, &Fiscalite::v2026());
-        assert_eq!(d.net, Money::from_cents(66_40));
-    }
-
-    #[test]
-    fn plus_value_cto() {
-        let f = Fiscalite::v2026();
-        assert_eq!(impot_plus_value(eur(1000), Enveloppe::Cto, &f), eur(314));
-        assert_eq!(impot_plus_value(eur(-500), Enveloppe::Cto, &f), Money::ZERO);
-        assert_eq!(impot_plus_value(eur(1000), Enveloppe::Pea, &f), Money::ZERO);
-    }
-
-    #[test]
-    fn cto_etats_unis_w8ben() {
-        // Retenue 15 % : crédit 12,80, PS 18,60 → net 66,40 €.
-        let d = dividende_net(eur(100), retenue_par_defaut("US").unwrap(), Enveloppe::Cto, &Fiscalite::v2026());
-        assert_eq!(d.net, Money::from_cents(66_40));
+    fn tous_les_pays_proposes_ont_une_retenue() {
+        for (code, nom) in PAYS_CONNUS {
+            assert!(retenue_par_defaut(code).is_some(), "retenue manquante pour {nom}");
+        }
     }
 
     #[test]
@@ -326,7 +200,12 @@ mod tests {
 
     #[test]
     fn croissance_du_dividende() {
-        let h = [v(2022, 5, 10, 2_000_000), v(2023, 5, 10, 2_100_000), v(2024, 5, 10, 2_205_000), v(2025, 5, 10, 2_315_250)];
+        let h = [
+            v(2022, 5, 10, 2_000_000),
+            v(2023, 5, 10, 2_100_000),
+            v(2024, 5, 10, 2_205_000),
+            v(2025, 5, 10, 2_315_250),
+        ];
         let s = synthese(&h, Date::ymd(2026, 3, 1));
         assert_eq!(s.croissance_annuelle, Some(Rate::from_micro(50_000)));
         assert_eq!(s.frequence, 1);

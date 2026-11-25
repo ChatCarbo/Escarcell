@@ -86,11 +86,7 @@ pub fn debut_quinzaine(annee: i32, q: u8) -> Date {
 }
 
 /// Calcule les intérêts année par année, de la première année concernée jusqu'à `jusqu_a`.
-pub fn simuler(
-    mouvements: &[Mouvement],
-    taux: &Series<Rate>,
-    jusqu_a: i32,
-) -> Result<Vec<AnneeLivret>, LivretError> {
+pub fn simuler(mouvements: &[Mouvement], taux: &Series<Rate>, jusqu_a: i32) -> Result<Vec<AnneeLivret>, LivretError> {
     let mut effets: BTreeMap<(i32, u8), i64> = BTreeMap::new();
     for m in mouvements {
         if m.montant.cents() <= 0 {
@@ -120,11 +116,7 @@ pub fn simuler(
         }
         let interets = crate::div_round(cumul, 24 * SCALE as i128);
         solde += interets;
-        annees.push(AnneeLivret {
-            annee,
-            interets: Money::from_cents(interets),
-            solde_fin: Money::from_cents(solde),
-        });
+        annees.push(AnneeLivret { annee, interets: Money::from_cents(interets), solde_fin: Money::from_cents(solde) });
     }
     Ok(annees)
 }

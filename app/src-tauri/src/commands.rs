@@ -1,19 +1,14 @@
-//! Commandes appelées par l'interface. Tous les calculs passent par `escarcelle-core`.
-//! Les montants échangés avec l'interface sont en centimes, les taux en millionièmes.
+//! Commandes générales appelées par l'interface : virements des livrets et tableau de bord.
+//! Tous les calculs passent par `escarcelle-core`. Montants en centimes, taux en millionièmes.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use escarcelle_core::comparateur::{comparer, Hypotheses};
-use escarcelle_core::impot::{calculer_ir, Foyer, Situation};
-use escarcelle_core::params::embarque;
-use escarcelle_core::per::economie_impot;
-use escarcelle_core::{Date, Money, Rate};
-use serde::{Deserialize, Serialize};
+use escarcelle_core::{Date, Money};
+use serde::Serialize;
 use tauri::State;
 
-use crate::catalog::Catalogue;
-use crate::store::{Compte, Operation};
+use crate::store::Operation;
 use crate::Etat;
 
 type Resultat<T> = Result<T, String>;
@@ -32,47 +27,39 @@ fn date(s: &str) -> Resultat<Date> {
     s.parse().map_err(err)
 }
 
-// ---------- Catalogue, comptes, opérations ----------
+// ---------- Virements des livrets ----------
 
 #[tauri::command]
-pub fn etablissements(etat: State<'_, Etat>) -> Catalogue {
-    etat.catalogue.clone()
-}
-
-#[tauri::command]
-pub fn comptes(etat: State<'_, Etat>) -> Resultat<Vec<Compte>> {
-    etat.db.lock().map_err(err)?.comptes().map_err(err)
-}
-
-#[tauri::command]
-pub fn ajouter_compte(etat: State<'_, Etat>, compte: Compte) -> Resultat<i64> {
-    date(&compte.ouverture)?;
-    etat.db.lock().map_err(err)?.ajouter_compte(&compte).map_err(err)
-}
-
-#[tauri::command]
-pub fn operations(etat: State<'_, Etat>, compte_id: i64) -> Resultat<Vec<Operation>> {
-    etat.db.lock().map_err(err)?.operations(compte_id).map_err(err)
-}
-
-#[tauri::command]
-pub fn ajouter_operation(etat: State<'_, Etat>, operation: Operation) -> Resultat<i64> {
-    date(&operation.date)?;
-    etat.db.lock().map_err(err)?.ajouter_operation(&operation).map_err(err)
+pub fn ajouter_operation(etat: State<'_, Etat>, mut operation: Operation) -> Resultat<i64> {
+    let d = date(&operation.date)?;
+    let debut = escarcelle_core::params::embarque::debut();
+    if d < debut {
+        return Err(format!(
+            "Escarcelle connaît les taux des livrets depuis le {:02}/{:02}/{} : saisissez le solde à cette date plutôt que les opérations plus anciennes.",
+            debut.day(),
+            debut.month(),
+            debut.year()
+        ));
+    }
+    if d.jours_unix() > aujourd_hui().jours_unix() + 366 {
+        return Err("La date est à plus d'un an dans le futur.".into());
+    }
+    operation.date = d.to_string();
+    if operation.type_ != "VERSEMENT" && operation.type_ != "RETRAIT" {
+        return Err(format!("type d'opération inconnu : {}", operation.type_));
+    }
+    if !operation.montant_cents.is_some_and(|m| m > 0) {
+        return Err("Le montant doit être positif.".into());
+    }
+    etat.db().ajouter_operation(&operation).map_err(err)
 }
 
 #[tauri::command]
 pub fn supprimer_operation(etat: State<'_, Etat>, id: i64) -> Resultat<()> {
-    etat.db.lock().map_err(err)?.supprimer_operation(id).map_err(err)
+    etat.db().supprimer_operation(id).map_err(err)
 }
 
-#[tauri::command]
-pub fn enregistrer_cours(etat: State<'_, Etat>, isin: String, date_cours: String, cours_micro: i64, source: String) -> Resultat<()> {
-    date(&date_cours)?;
-    etat.db.lock().map_err(err)?.enregistrer_cours(&isin, &date_cours, cours_micro, &source).map_err(err)
-}
-
-// ---------- Valorisation des comptes ----------
+// ---------- Tableau de bord ----------
 
 #[derive(Serialize)]
 pub struct LigneCompte {
@@ -80,7 +67,6 @@ pub struct LigneCompte {
     pub nom: String,
     #[serde(rename = "type")]
     pub type_: String,
-    pub etablissement: String,
     pub valeur_cents: i64,
     /// Intérêts estimés de l'année (livrets) ou plus-value latente (PEA).
     pub complement_cents: i64,
@@ -101,10 +87,9 @@ pub struct TableauDeBord {
     pub livrets_cents: i64,
     pub interets_estimes_cents: i64,
     pub pv_latente_cents: i64,
-    /// Dividendes annuels estimés, nets d'impôts et de retenues (PEA + CTO).
+    /// Dividendes annuels estimés du PEA, nets de retenues.
     pub dividendes_nets_cents: i64,
     pub par_enveloppe: Vec<Part>,
-    pub par_etablissement: Vec<Part>,
     pub comptes: Vec<LigneCompte>,
     pub alertes: Vec<crate::alertes::AlerteDto>,
 }
@@ -114,9 +99,7 @@ fn libelle_enveloppe(t: &str) -> &'static str {
         "LIVRET_A" => "Livret A",
         "LDDS" => "LDDS",
         "LEP" => "LEP",
-        "PEA" | "PEA_PME" => "PEA",
-        "CTO" => "CTO",
-        "PER" => "PER",
+        "PEA" => "PEA",
         _ => "Autre",
     }
 }
@@ -126,9 +109,7 @@ fn couleur_enveloppe(t: &str) -> &'static str {
         "LIVRET_A" => "#38BDF8",
         "LDDS" => "#0284C7",
         "LEP" => "#34D399",
-        "PEA" | "PEA_PME" => "#10B981",
-        "CTO" => "#8B5CF6",
-        "PER" => "#FBBF24",
+        "PEA" => "#10B981",
         _ => "#94A3B8",
     }
 }
@@ -136,14 +117,13 @@ fn couleur_enveloppe(t: &str) -> &'static str {
 #[tauri::command]
 pub fn tableau_de_bord(etat: State<'_, Etat>) -> Resultat<TableauDeBord> {
     let jour = aujourd_hui();
-    let comptes = etat.db.lock().map_err(err)?.comptes().map_err(err)?;
+    let comptes = etat.db().comptes().map_err(err)?;
     let mut lignes = Vec::new();
     let (mut livrets, mut interets, mut pv_latente) = (Money::ZERO, Money::ZERO, Money::ZERO);
     let mut par_env: BTreeMap<&'static str, (Money, &'static str)> = BTreeMap::new();
-    let mut par_etab: BTreeMap<String, Money> = BTreeMap::new();
 
     for c in &comptes {
-        let ops = etat.db.lock().map_err(err)?.operations(c.id).map_err(err)?;
+        let ops = etat.db().operations(c.id).map_err(err)?;
         let (valeur, complement) = match c.type_.as_str() {
             "LIVRET_A" | "LDDS" | "LEP" => {
                 let (v, i) = crate::livrets::valoriser(&c.type_, &ops, jour)?;
@@ -155,36 +135,28 @@ pub fn tableau_de_bord(etat: State<'_, Etat>) -> Resultat<TableauDeBord> {
         };
         let e = par_env.entry(libelle_enveloppe(&c.type_)).or_insert((Money::ZERO, couleur_enveloppe(&c.type_)));
         e.0 += valeur;
-        *par_etab.entry(c.etablissement.clone()).or_insert(Money::ZERO) += valeur;
         lignes.push(LigneCompte {
             id: c.id,
             nom: c.nom.clone(),
             type_: c.type_.clone(),
-            etablissement: c.etablissement.clone(),
             valeur_cents: valeur.cents(),
             complement_cents: complement.cents(),
         });
     }
 
-    // PEA et CTO : suivi de lignes, sans établissement.
-    let mut dividendes_nets = Money::ZERO;
-    for env in ["PEA", "CTO"] {
-        let (valeur, pv, div_net) = crate::portefeuille::totaux(&etat, env)?;
-        if valeur <= Money::ZERO {
-            continue;
-        }
-        pv_latente += pv;
-        dividendes_nets += div_net;
-        par_env.insert(libelle_enveloppe(env), (valeur, couleur_enveloppe(env)));
-        *par_etab.entry("non_precise".into()).or_insert(Money::ZERO) += valeur;
+    // PEA : suivi de lignes, sans établissement.
+    let (valeur_pea, pv_pea, dividendes_nets) = crate::portefeuille::totaux(&etat)?;
+    if valeur_pea > Money::ZERO {
+        pv_latente += pv_pea;
+        par_env.insert(libelle_enveloppe("PEA"), (valeur_pea, couleur_enveloppe("PEA")));
         lignes.push(LigneCompte {
-            // Identifiants négatifs distincts : l'interface s'en sert comme clé de liste.
-            id: if env == "PEA" { -1 } else { -2 },
-            nom: env.into(),
-            type_: env.into(),
-            etablissement: String::new(),
-            valeur_cents: valeur.cents(),
-            complement_cents: pv.cents(),
+            // Identifiant négatif : il ne peut pas se confondre avec un compte de livret (l'interface s'en sert
+            // comme clé de liste).
+            id: -1,
+            nom: "PEA".into(),
+            type_: "PEA".into(),
+            valeur_cents: valeur_pea.cents(),
+            complement_cents: pv_pea.cents(),
         });
     }
     let alertes = crate::alertes::calculer(&etat)?;
@@ -192,25 +164,14 @@ pub fn tableau_de_bord(etat: State<'_, Etat>) -> Resultat<TableauDeBord> {
     let total: Money = lignes.iter().map(|l| Money::from_cents(l.valeur_cents)).sum();
     let mut par_enveloppe: Vec<Part> = par_env
         .into_iter()
-        .map(|(lib, (m, col))| Part { cle: lib.into(), libelle: lib.into(), montant_cents: m.cents(), couleur: Some(col.into()) })
-        .collect();
-    par_enveloppe.sort_by(|a, b| b.montant_cents.cmp(&a.montant_cents));
-    let mut par_etablissement: Vec<Part> = par_etab
-        .into_iter()
-        .map(|(id, m)| Part {
-            libelle: etat
-                .catalogue
-                .etablissements
-                .iter()
-                .find(|e| e.id == id)
-                .map(|e| e.nom.clone())
-                .unwrap_or_else(|| if id == "non_precise" { "Non précisé (PEA, CTO)".into() } else { id.clone() }),
-            couleur: etat.catalogue.couleur(&id).map(String::from),
-            cle: id,
+        .map(|(lib, (m, col))| Part {
+            cle: lib.into(),
+            libelle: lib.into(),
             montant_cents: m.cents(),
+            couleur: Some(col.into()),
         })
         .collect();
-    par_etablissement.sort_by(|a, b| b.montant_cents.cmp(&a.montant_cents));
+    par_enveloppe.sort_by_key(|p| std::cmp::Reverse(p.montant_cents));
 
     Ok(TableauDeBord {
         date: jour.to_string(),
@@ -220,122 +181,7 @@ pub fn tableau_de_bord(etat: State<'_, Etat>) -> Resultat<TableauDeBord> {
         pv_latente_cents: pv_latente.cents(),
         dividendes_nets_cents: dividendes_nets.cents(),
         par_enveloppe,
-        par_etablissement,
         comptes: lignes,
         alertes,
     })
-}
-
-// ---------- Impôt et PER ----------
-
-#[derive(Deserialize)]
-pub struct FoyerDto {
-    pub couple: bool,
-    pub enfants: u32,
-}
-
-impl FoyerDto {
-    fn foyer(&self) -> Foyer {
-        Foyer {
-            situation: if self.couple { Situation::Couple } else { Situation::Seul },
-            enfants: self.enfants,
-            parent_isole: false,
-        }
-    }
-}
-
-#[derive(Serialize)]
-pub struct ImpotDto {
-    pub parts_demi: u32,
-    pub impot_cents: i64,
-    pub decote_cents: i64,
-    pub plafonnement: bool,
-    pub tmi_micro: i64,
-    pub taux_marginal_effectif_micro: i64,
-    pub taux_moyen_micro: i64,
-}
-
-#[tauri::command]
-pub fn impot(revenu_cents: i64, foyer: FoyerDto) -> Resultat<ImpotDto> {
-    let r = calculer_ir(Money::from_cents(revenu_cents), &foyer.foyer(), &embarque::ir_revenus_2025()).map_err(err)?;
-    Ok(ImpotDto {
-        parts_demi: r.demi_parts,
-        impot_cents: r.impot.cents(),
-        decote_cents: r.decote.cents(),
-        plafonnement: r.plafonnement_applique,
-        tmi_micro: r.tmi.micro(),
-        taux_marginal_effectif_micro: r.taux_marginal_effectif.micro(),
-        taux_moyen_micro: r.taux_moyen.micro(),
-    })
-}
-
-#[derive(Serialize)]
-pub struct EconomieDto {
-    pub deductible_cents: i64,
-    pub economie_cents: i64,
-    pub taux_micro: i64,
-    pub bas_de_tranche_cents: i64,
-    pub economie_bas_de_tranche_cents: i64,
-}
-
-#[tauri::command]
-pub fn economie_per(revenu_cents: i64, foyer: FoyerDto, versement_cents: i64, plafond_cents: i64) -> Resultat<EconomieDto> {
-    let p = embarque::ir_revenus_2025();
-    let f = foyer.foyer();
-    let revenu = Money::from_cents(revenu_cents);
-    let e = economie_impot(revenu, &f, &p, Money::from_cents(versement_cents), Money::from_cents(plafond_cents)).map_err(err)?;
-    let b = escarcelle_core::per::verser_jusqu_au_bas_de_tranche(revenu, &f, &p).map_err(err)?;
-    Ok(EconomieDto {
-        deductible_cents: e.deductible.cents(),
-        economie_cents: e.economie.cents(),
-        taux_micro: e.taux.micro(),
-        bas_de_tranche_cents: b.versement.cents(),
-        economie_bas_de_tranche_cents: b.economie.cents(),
-    })
-}
-
-#[derive(Deserialize)]
-pub struct HypothesesDto {
-    pub versement_initial_cents: i64,
-    pub versement_mensuel_cents: i64,
-    pub annees: u32,
-    pub part_fonds_euros_micro: i64,
-    pub rendement_brut_uc_micro: i64,
-    pub ter_uc_micro: i64,
-}
-
-#[derive(Serialize)]
-pub struct ResultatComparaisonDto {
-    pub nom: String,
-    pub capital_final_cents: i64,
-    pub versements_cents: i64,
-    pub frais_totaux_cents: i64,
-    pub ecart_cents: i64,
-    pub plafonnee: bool,
-    pub part_fonds_euros_micro: i64,
-}
-
-#[tauri::command]
-pub fn comparer_per(etat: State<'_, Etat>, hypotheses: HypothesesDto) -> Vec<ResultatComparaisonDto> {
-    let contrats: Vec<_> = etat.catalogue.produits("PER").filter_map(|(_, p)| p.contrat_comparable("2025")).collect();
-    let h = Hypotheses {
-        versement_initial: Money::from_cents(hypotheses.versement_initial_cents),
-        versement_mensuel: Money::from_cents(hypotheses.versement_mensuel_cents),
-        annees: hypotheses.annees.clamp(1, 50),
-        part_fonds_euros: Rate::from_micro(hypotheses.part_fonds_euros_micro),
-        rendement_brut_uc: Rate::from_micro(hypotheses.rendement_brut_uc_micro),
-        ter_uc: Rate::from_micro(hypotheses.ter_uc_micro),
-    };
-    comparer(&contrats, &h)
-        .into_iter()
-        .map(|r| ResultatComparaisonDto {
-            nom: r.nom,
-            capital_final_cents: r.capital_final.cents(),
-            versements_cents: r.versements.cents(),
-            frais_totaux_cents: r.frais_totaux.cents(),
-            ecart_cents: r.ecart_avec_meilleur.cents(),
-            plafonnee: r.plafonnee,
-            part_fonds_euros_micro: r.part_fonds_euros.micro(),
-        })
-        .collect()
 }

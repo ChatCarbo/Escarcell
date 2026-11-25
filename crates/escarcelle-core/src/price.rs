@@ -37,10 +37,7 @@ impl Price {
         if reference.0 == 0 {
             return Rate::from_micro(i64::MAX);
         }
-        Rate::from_micro(crate::div_round(
-            (self.0 - reference.0).abs() as i128 * 1_000_000,
-            reference.0.abs() as i128,
-        ))
+        Rate::from_micro(crate::div_round((self.0 - reference.0).abs() as i128 * 1_000_000, reference.0.abs() as i128))
     }
 }
 

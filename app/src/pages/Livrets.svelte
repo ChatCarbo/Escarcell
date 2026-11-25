@@ -31,16 +31,29 @@
   }
   onMount(charger);
 
-  // Conseil recalculé à chaque changement de livret, de sens, de date ou de montant.
+  // Conseil recalculé à chaque changement de livret, de sens, de date ou de montant ;
+  // seule la réponse à la dernière demande est affichée.
+  let numeroConseil = 0;
   $effect(() => {
     const { livret, sens, date, montant } = op;
-    if (!date) return;
-    api.conseilLivret(livret, sens, date, versCents(montant) ?? 0).then((c) => (conseil = c)).catch(() => (conseil = null));
+    const numero = ++numeroConseil;
+    if (!date) {
+      conseil = null;
+      return;
+    }
+    api
+      .conseilLivret(livret, sens, date, versCents(montant) ?? 0)
+      .then((c) => { if (numero === numeroConseil) conseil = c; })
+      .catch(() => { if (numero === numeroConseil) conseil = null; });
   });
 
   async function ouvrir(type) {
-    livrets = await api.ouvrirLivret(type);
-    op.livret = type;
+    try {
+      livrets = await api.ouvrirLivret(type);
+      op.livret = type;
+    } catch (e) {
+      erreur = String(e);
+    }
   }
 
   async function enregistrer(ev) {
@@ -53,24 +66,36 @@
       return (erreur = `Ce versement dépasserait le plafond de ${euros(l.plafond_cents)} (maximum possible : ${euros(Math.max(l.plafond_cents - l.solde_cents, 0))}).`);
     }
     if (op.sens === 'RETRAIT' && m > l.solde_cents) return (erreur = 'Montant supérieur au solde.');
-    await api.ajouterOperation({
-      id: 0, compte_id: l.compte_id, date: op.date, type: op.sens, montant_cents: m,
-      isin: null, quantite_micro: null, cours_micro: null, frais_cents: 0, valeur_plan_cents: null, libelle: null,
-    });
+    try {
+      await api.ajouterOperation({
+        id: 0, compte_id: l.compte_id, date: op.date, type: op.sens, montant_cents: m,
+        isin: null, quantite_micro: null, cours_micro: null, frais_cents: 0, valeur_plan_cents: null, libelle: null,
+      });
+    } catch (e) {
+      return (erreur = String(e));
+    }
     op.montant = '';
     await charger();
   }
 
   async function supprimer(id) {
     if (aSupprimer !== id) return (aSupprimer = id);
-    await api.supprimerOperation(id);
+    try {
+      await api.supprimerOperation(id);
+    } catch (e) {
+      erreur = String(e);
+    }
     aSupprimer = null;
     await charger();
   }
 
   async function repartir() {
     const m = versCents(op.montant);
-    repartition = m ? await api.repartirLivrets(op.sens, m) : null;
+    try {
+      repartition = m && m > 0 ? await api.repartirLivrets(op.sens, m) : null;
+    } catch (e) {
+      erreur = String(e);
+    }
   }
 
   let messageExport = $state('');
@@ -130,7 +155,7 @@
       <label>Livret
         <select bind:value={op.livret}>{#each detenus as l}<option value={l.type}>{l.nom}</option>{/each}</select>
       </label>
-      <label>Date de valeur<input type="date" bind:value={op.date} /></label>
+      <label>Date de valeur<input type="date" min="2020-02-01" bind:value={op.date} /></label>
       <label>Montant (€)<input bind:value={op.montant} inputmode="decimal" onblur={repartir} /></label>
       <button type="submit" class="principal">Enregistrer</button>
       {#if repartition && repartition.parts.length}

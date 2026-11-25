@@ -33,54 +33,47 @@ fn date_fr(d: Date) -> String {
     format!("{:02}/{:02}/{}", d.day(), d.month(), d.year())
 }
 
-/// Alertes des 45 prochains jours, triées par date.
-#[tauri::command]
-pub fn alertes(etat: State<'_, Etat>) -> Resultat<Vec<AlerteDto>> {
-    calculer(&etat)
-}
-
+/// Alertes des 45 prochains jours, triées par date (affichées sur le tableau de bord).
 pub fn calculer(etat: &Etat) -> Resultat<Vec<AlerteDto>> {
     let jour = crate::commands::aujourd_hui();
     let limite = Date::depuis_jours_unix(jour.jours_unix() + HORIZON);
     let mut res = Vec::new();
     let mut noms = std::collections::HashMap::new();
 
-    for env in ["PEA", "CTO"] {
-        let p = crate::portefeuille::portefeuille(etat, env)?;
-        for l in p.lignes {
-            noms.insert(l.symbole.clone(), (l.nom.clone(), env));
-            let Some(d) = l.div_prochain_estime.as_deref().and_then(|d| d.parse::<Date>().ok()) else { continue };
-            if d < jour || d > limite {
-                continue;
-            }
-            let montant = l.div_dernier_micro.unwrap_or(0) as f64 / 1_000_000.0;
-            res.push(AlerteDto {
-                date: d.to_string(),
-                type_: "dividende".into(),
-                titre: l.nom.clone(),
-                enveloppe: env.into(),
-                message: format!(
-                    "Détachement du dividende estimé vers le {} (dernier versement : {} € par action). Date déduite de l'an dernier, à confirmer auprès de la société.",
-                    date_fr(d),
-                    format!("{montant:.2}").replace('.', ",")
-                ),
-                evenement_id: None,
-            });
+    let p = crate::portefeuille::portefeuille(etat)?;
+    for l in p.lignes {
+        noms.insert(l.symbole.clone(), l.nom.clone());
+        let Some(d) = l.div_prochain_estime.as_deref().and_then(|d| d.parse::<Date>().ok()) else { continue };
+        if d < jour || d > limite {
+            continue;
         }
+        let montant = l.div_dernier_micro.unwrap_or(0) as f64 / 1_000_000.0;
+        res.push(AlerteDto {
+            date: d.to_string(),
+            type_: "dividende".into(),
+            titre: l.nom,
+            enveloppe: "PEA".into(),
+            message: format!(
+                "Détachement du dividende estimé vers le {} (dernier versement : {} € par action). Date déduite de l'an dernier, à confirmer auprès de la société.",
+                date_fr(d),
+                format!("{montant:.2}").replace('.', ",")
+            ),
+            evenement_id: None,
+        });
     }
 
-    for e in etat.db.lock().map_err(err)?.evenements().map_err(err)? {
+    for e in etat.db().evenements().map_err(err)? {
         let Ok(d) = e.date.parse::<Date>() else { continue };
         if d < jour || d > limite {
             continue;
         }
-        let (nom, env) = noms.get(&e.symbole).cloned().unwrap_or((e.symbole.clone(), ""));
+        let nom = noms.get(&e.symbole).cloned().unwrap_or_else(|| e.symbole.clone());
         let quoi = if e.type_ == "AG" { "Assemblée générale" } else { "Événement" };
         res.push(AlerteDto {
             date: d.to_string(),
             type_: if e.type_ == "AG" { "ag" } else { "autre" }.into(),
             titre: nom,
-            enveloppe: env.into(),
+            enveloppe: "PEA".into(),
             message: match e.note.as_deref().filter(|n| !n.trim().is_empty()) {
                 Some(n) => format!("{quoi} le {} : {n}", date_fr(d)),
                 None => format!("{quoi} le {}.", date_fr(d)),
@@ -94,7 +87,7 @@ pub fn calculer(etat: &Etat) -> Resultat<Vec<AlerteDto>> {
 
 #[tauri::command]
 pub fn evenements(etat: State<'_, Etat>) -> Resultat<Vec<Evenement>> {
-    etat.db.lock().map_err(err)?.evenements().map_err(err)
+    etat.db().evenements().map_err(err)
 }
 
 #[derive(Deserialize)]
@@ -108,19 +101,25 @@ pub struct SaisieEvenement {
 
 #[tauri::command]
 pub fn ajouter_evenement(etat: State<'_, Etat>, saisie: SaisieEvenement) -> Resultat<Vec<Evenement>> {
-    saisie.date.parse::<Date>().map_err(err)?;
+    let date = saisie.date.parse::<Date>().map_err(err)?;
     if saisie.type_ != "AG" && saisie.type_ != "AUTRE" {
         return Err("Type d'événement inconnu.".into());
     }
-    let db = etat.db.lock().map_err(err)?;
-    db.ajouter_evenement(&Evenement { id: 0, symbole: saisie.symbole, type_: saisie.type_, date: saisie.date, note: saisie.note })
-        .map_err(err)?;
+    let db = etat.db();
+    db.ajouter_evenement(&Evenement {
+        id: 0,
+        symbole: saisie.symbole,
+        type_: saisie.type_,
+        date: date.to_string(),
+        note: saisie.note,
+    })
+    .map_err(err)?;
     db.evenements().map_err(err)
 }
 
 #[tauri::command]
 pub fn supprimer_evenement(etat: State<'_, Etat>, id: i64) -> Resultat<Vec<Evenement>> {
-    let db = etat.db.lock().map_err(err)?;
+    let db = etat.db();
     db.supprimer_evenement(id).map_err(err)?;
     db.evenements().map_err(err)
 }
@@ -204,14 +203,15 @@ pub async fn verifier_mise_a_jour(etat: State<'_, Etat>) -> Resultat<MiseAJourDt
     })
 }
 
-/// Réglage « vérifier les nouvelles versions au démarrage » (activé par défaut).
+/// Réglage « vérifier les nouvelles versions au démarrage » (désactivé par défaut).
 #[tauri::command]
 pub fn verification_auto(etat: State<'_, Etat>, activer: Option<bool>) -> Resultat<bool> {
-    let db = etat.db.lock().map_err(err)?;
+    let db = etat.db();
     if let Some(a) = activer {
         db.definir_parametre("maj.auto", if a { "1" } else { "0" }).map_err(err)?;
     }
-    Ok(db.parametre("maj.auto").map_err(err)?.as_deref() != Some("0"))
+    // Désactivée par défaut : Escarcelle ne contacte aucun serveur sans l'accord de l'utilisateur.
+    Ok(db.parametre("maj.auto").map_err(err)?.as_deref() == Some("1"))
 }
 
 #[cfg(test)]

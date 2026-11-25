@@ -3,8 +3,9 @@
 ## 1. Le cœur de calcul (aucune connexion nécessaire)
 
 ```sh
-cargo test                                               # 94 tests
-cargo run -p escarcelle-core --example comparer_per      # comparaison des 5 PER
+cargo fmt --check                                        # mise en forme
+cargo clippy --all-targets -- -D warnings                # analyse statique
+cargo test                                               # 63 tests
 ```
 
 ## 2. L'application de bureau
@@ -20,17 +21,22 @@ npm run tauri dev                             # lance l'application en mode dév
 npm run tauri build                           # produit l'installateur
 ```
 
-Tests propres à l'application (catalogue embarqué, base SQLite) :
+Tests propres à l'application (base SQLite, cours, versions) :
 
 ```sh
 cd app && cargo test
 ```
 
-## État de ce code
+## Intégration continue
 
-Le dossier `app/` a été écrit sans pouvoir être compilé (pas d'accès réseau pour télécharger
-tauri, rusqlite, serde et Svelte). Il faut s'attendre à quelques erreurs de compilation à corriger
-au premier lancement : envoie-les telles quelles, elles se corrigent vite.
+À chaque envoi sur `main` et à chaque pull request, GitHub Actions (`.github/workflows/ci.yml`) vérifie :
+- le cœur sous Linux : mise en forme, clippy sans avertissement, tests ;
+- le cœur avec Rust 1.75, la version minimale annoncée ;
+- l'application sous Windows : build de l'interface Svelte, mise en forme, clippy, tests.
+
+Pensez à envoyer `app/package-lock.json` sur GitHub : la CI installe alors exactement les mêmes versions de paquets que vous.
+
+## Données
 
 Les données sont enregistrées dans le dossier de données de l'application
 (sous Windows : `%APPDATA%\fr.chatcarbo.escarcelle\escarcelle.db`). Une sauvegarde = une copie de ce fichier.

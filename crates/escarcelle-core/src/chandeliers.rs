@@ -282,10 +282,12 @@ mod tests {
     }
 
     fn baisse(n: usize) -> Vec<Bougie> {
-        (0..n).map(|i| {
-            let c = 100.0 - i as f64;
-            b(i as i64 * 86_400, c + 0.5, c + 1.0, c - 1.0, c)
-        }).collect()
+        (0..n)
+            .map(|i| {
+                let c = 100.0 - i as f64;
+                b(i as i64 * 86_400, c + 0.5, c + 1.0, c - 1.0, c)
+            })
+            .collect()
     }
 
     #[test]
@@ -341,10 +343,12 @@ mod tests {
     }
 
     fn sinus(n: usize, tendance: f64) -> Vec<Bougie> {
-        (0..n).map(|i| {
-            let c = 100.0 + tendance * i as f64 + 5.0 * ((i as f64) * std::f64::consts::PI / 10.0).sin();
-            b(i as i64 * 86_400, c, c + 0.5, c - 0.5, c)
-        }).collect()
+        (0..n)
+            .map(|i| {
+                let c = 100.0 + tendance * i as f64 + 5.0 * ((i as f64) * std::f64::consts::PI / 10.0).sin();
+                b(i as i64 * 86_400, c, c + 0.5, c - 0.5, c)
+            })
+            .collect()
     }
 
     #[test]
@@ -358,10 +362,18 @@ mod tests {
     fn double_sommet_en_formation() {
         // Montée à 120, repli à 105, remontée à 119, rechute à 112.
         let mut c = Vec::new();
-        for i in 0..20 { c.push(100.0 + i as f64); }
-        for i in 0..15 { c.push(119.0 - i as f64); }
-        for i in 0..15 { c.push(105.0 + i as f64 * 0.95); }
-        for i in 0..10 { c.push(118.0 - i as f64 * 0.7); }
+        for i in 0..20 {
+            c.push(100.0 + i as f64);
+        }
+        for i in 0..15 {
+            c.push(119.0 - i as f64);
+        }
+        for i in 0..15 {
+            c.push(105.0 + i as f64 * 0.95);
+        }
+        for i in 0..10 {
+            c.push(118.0 - i as f64 * 0.7);
+        }
         let v: Vec<Bougie> = c.iter().enumerate().map(|(i, &x)| b(i as i64 * 86_400, x, x + 0.3, x - 0.3, x)).collect();
         let s = double_sommet_ou_fond(&v).expect("double sommet attendu");
         assert_eq!(s.nom, "Double sommet");

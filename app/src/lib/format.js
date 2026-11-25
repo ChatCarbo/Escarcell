@@ -27,4 +27,8 @@ export const pctVersMicro = (s) => (nombre(s) === null ? null : Math.round(nombr
 export const microVersTexte = (m) =>
   m === null || m === undefined ? '' : (m / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 6 });
 
-export const aujourdHui = () => new Date().toISOString().slice(0, 10);
+/** Date du jour au format AAAA-MM-JJ, à l'heure locale (toISOString donnerait la date UTC : la veille entre minuit et 1 h ou 2 h en France). */
+export const aujourdHui = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};

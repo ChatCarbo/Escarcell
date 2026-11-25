@@ -1,18 +1,24 @@
-//! Récupération des cours. Première source : Yahoo Finance (réponses JSON publiques, sans clé).
-//! Les cours restent sur la machine de l'utilisateur et ne sont jamais rediffusés.
-//! Boursorama et Euronext viendront s'ajouter devant dans la chaîne de `escarcelle-quotes`.
+//! Récupération des cours, sans clé ni compte, auprès de Yahoo Finance (réponses JSON publiques).
+//! Seul le symbole du titre est envoyé ; les cours restent sur la machine de l'utilisateur
+//! et ne sont jamais rediffusés.
 
 use serde::Deserialize;
 
-pub const USER_AGENT: &str = concat!("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Escarcelle/", env!("CARGO_PKG_VERSION"));
+pub const USER_AGENT: &str =
+    concat!("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Escarcelle/", env!("CARGO_PKG_VERSION"));
 
 pub struct Cotation {
     /// Cours en millionièmes de la devise.
     pub cours_micro: i64,
+    /// Devise de cotation : un PEA n'accepte que l'euro.
     pub devise: String,
     /// Heure du cours, secondes Unix.
     pub horodatage: i64,
+    /// Source qui a fourni le cours.
+    pub source: &'static str,
 }
+
+pub const YAHOO: &str = "Yahoo Finance";
 
 #[derive(Deserialize)]
 struct Recherche {
@@ -96,12 +102,16 @@ struct Meta {
     regular_market_time: Option<i64>,
 }
 
-/// Un ISIN : 2 lettres, 9 caractères alphanumériques, 1 chiffre de contrôle.
+/// Symbole de cotation Yahoo : lettres, chiffres, point, tiret, accent circonflexe ou égal (1 à 20 caractères).
+/// Il est placé dans l'adresse de la requête : tout autre caractère est refusé.
+pub fn symbole_valide(s: &str) -> bool {
+    (1..=20).contains(&s.len())
+        && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '^' | '=' | '_'))
+}
+
+/// Un ISIN valide (clé de contrôle ISO 6166 comprise).
 pub fn est_isin(s: &str) -> bool {
-    s.len() == 12
-        && s[..2].chars().all(|c| c.is_ascii_uppercase())
-        && s[2..].chars().all(|c| c.is_ascii_alphanumeric())
-        && s[11..].chars().all(|c| c.is_ascii_digit())
+    escarcelle_core::identifiants::isin_valide(s)
 }
 
 /// Trouve le symbole de cotation d'un ISIN ou d'un nom, en privilégiant Euronext Paris.
@@ -118,29 +128,36 @@ pub async fn rechercher(http: &reqwest::Client, requete: &str) -> Result<Option<
         .await
         .map_err(|e| format!("réponse de recherche illisible : {e}"))?;
     let paris = |q: &&Resultat| q.symbol.ends_with(".PA") || q.exchange.as_deref() == Some("PAR");
-    let choix = r.quotes.iter().find(paris).or_else(|| r.quotes.first());
+    let choix = r
+        .quotes
+        .iter()
+        .find(paris)
+        .or_else(|| r.quotes.iter().find(|q| place_euro(&q.symbol).is_some()))
+        .or_else(|| r.quotes.first());
     Ok(choix.map(|q| (q.symbol.clone(), q.longname.clone().or_else(|| q.shortname.clone()))))
 }
 
-/// Devise normalisée et facteur à appliquer aux prix : la Bourse de Londres cote en pence
-/// (« GBp » ou « GBX ») ; on convertit en livres.
-pub fn normaliser_devise(devise: Option<&str>) -> (String, f64) {
-    match devise {
-        Some("GBp") | Some("GBX") | Some("GBx") => ("GBP".into(), 0.01),
-        Some("ZAc") | Some("ZAC") => ("ZAR".into(), 0.01),
-        Some("ILA") => ("ILS".into(), 0.01),
-        Some(d) => (d.to_uppercase(), 1.0),
-        None => ("EUR".into(), 1.0),
-    }
+/// Devise en majuscules (l'euro par défaut si Yahoo ne l'indique pas).
+fn devise(d: Option<&str>) -> String {
+    d.unwrap_or("EUR").to_uppercase()
 }
 
-/// Symbole Yahoo du taux de change : nombre d'unités de `devise` pour 1 euro.
-pub fn symbole_change(devise: &str) -> String {
-    format!("EUR{devise}=X")
+fn maintenant() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
+
+/// Un cours doit être un nombre fini et strictement positif.
+fn cours_valide(x: f64) -> bool {
+    x.is_finite() && x > 0.0
+}
+
+// ---------- Yahoo Finance ----------
 
 /// Dernier cours connu d'un symbole.
 pub async fn coter(http: &reqwest::Client, symbole: &str) -> Result<Cotation, String> {
+    if !symbole_valide(symbole) {
+        return Err(format!("« {symbole} » n'est pas un symbole de cotation valide"));
+    }
     let url = format!("https://query1.finance.yahoo.com/v8/finance/chart/{symbole}");
     let c: Chart = http
         .get(url)
@@ -159,32 +176,17 @@ pub async fn coter(http: &reqwest::Client, symbole: &str) -> Result<Cotation, St
         .and_then(|mut r| r.pop())
         .map(|r| r.meta)
         .ok_or_else(|| format!("{symbole} : titre introuvable"))?;
-    let prix = meta.regular_market_price.ok_or_else(|| format!("{symbole} : pas de cours"))?;
-    let (devise, facteur) = normaliser_devise(meta.currency.as_deref());
-    // Un taux de change (EURUSD=X) est déjà exprimé en unités de devise : pas de conversion.
-    let facteur = if symbole.ends_with("=X") { 1.0 } else { facteur };
+    let prix =
+        meta.regular_market_price.filter(|p| cours_valide(*p)).ok_or_else(|| format!("{symbole} : pas de cours"))?;
     Ok(Cotation {
-        cours_micro: (prix * facteur * 1_000_000.0).round() as i64,
-        devise,
-        horodatage: meta.regular_market_time.unwrap_or(0),
+        cours_micro: (prix * 1_000_000.0).round() as i64,
+        devise: devise(meta.currency.as_deref()),
+        // Sans heure de cotation, on date le cours de maintenant : un horodatage nul le classerait en 1970,
+        // derrière les cours plus anciens.
+        horodatage: meta.regular_market_time.filter(|t| *t > 0).unwrap_or_else(maintenant),
+        source: YAHOO,
     })
 }
-
-/// Places hors zone euro acceptées dans le CTO (suffixes Yahoo).
-const PLACES_MONDE: [(&str, &str, &str); 9] = [
-    (".SW", "Zurich", "CHF"),
-    (".L", "Londres", "GBP"),
-    (".ST", "Stockholm", "SEK"),
-    (".CO", "Copenhague", "DKK"),
-    (".OL", "Oslo", "NOK"),
-    (".TO", "Toronto", "CAD"),
-    (".T", "Tokyo", "JPY"),
-    (".HK", "Hong Kong", "HKD"),
-    (".AX", "Sydney", "AUD"),
-];
-
-/// Codes Yahoo des places américaines (les symboles américains n'ont pas de suffixe).
-const PLACES_US: [&str; 9] = ["NMS", "NYQ", "NGM", "NCM", "ASE", "PCX", "BTS", "NAS", "NYS"];
 
 /// Places de cotation en euros (suffixes Yahoo).
 const PLACES_EURO: [(&str, &str); 12] = [
@@ -204,8 +206,8 @@ const PLACES_EURO: [(&str, &str); 12] = [
 
 /// Pays de l'Espace économique européen (préfixe ISIN = pays de l'émetteur).
 const EEE: [&str; 30] = [
-    "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU", "IE",
-    "IS", "IT", "LI", "LT", "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", "SK",
+    "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GR", "HR", "HU", "IE", "IS", "IT", "LI", "LT",
+    "LU", "LV", "MT", "NL", "NO", "PL", "PT", "RO", "SE", "SI", "SK",
 ];
 
 pub fn place_euro(symbole: &str) -> Option<&'static str> {
@@ -219,9 +221,14 @@ pub fn eligibilite_pea(isin: Option<&str>, symbole: &str, type_: &str) -> &'stat
         return "à vérifier (ETF)";
     }
     match isin {
-        Some(i) if EEE.contains(&&i[..2]) => "probable",
+        Some(i) if i.get(..2).is_some_and(|p| EEE.contains(&p)) => "probable",
         Some(_) => "non (émetteur hors EEE)",
-        None if [".PA", ".AS", ".BR", ".LS", ".MI", ".MC", ".HE", ".VI", ".IR", ".AT"].iter().any(|s| symbole.ends_with(s)) => "probable",
+        None if [".PA", ".AS", ".BR", ".LS", ".MI", ".MC", ".HE", ".VI", ".IR", ".AT"]
+            .iter()
+            .any(|s| symbole.ends_with(s)) =>
+        {
+            "probable"
+        }
         None => "à vérifier",
     }
 }
@@ -231,30 +238,10 @@ pub struct Titre {
     pub nom: String,
     pub place: String,
     pub type_: String,
-    /// Devise de cotation probable, d'après la place.
-    pub devise: String,
 }
 
-/// Place et devise d'un résultat de recherche. `monde` : accepter aussi les places hors euro (CTO).
-fn place_et_devise(symbole: &str, exchange: Option<&str>, monde: bool) -> Option<(&'static str, &'static str)> {
-    if let Some(p) = place_euro(symbole) {
-        return Some((p, "EUR"));
-    }
-    if !monde {
-        return None;
-    }
-    if let Some((_, p, d)) = PLACES_MONDE.iter().find(|(suf, _, _)| symbole.ends_with(suf)) {
-        return Some((p, d));
-    }
-    if !symbole.contains('.') && exchange.is_some_and(|e| PLACES_US.contains(&e)) {
-        return Some(("États-Unis", "USD"));
-    }
-    None
-}
-
-/// Recherche d'actions et d'ETF. PEA : cotations en euros ; CTO (`monde`) : aussi les États-Unis,
-/// la Suisse, Londres, les pays nordiques, Toronto, Tokyo, Hong Kong et Sydney.
-pub async fn rechercher_titres(http: &reqwest::Client, requete: &str, monde: bool) -> Result<Vec<Titre>, String> {
+/// Recherche d'actions et d'ETF cotés en euros, par nom, mnémonique ou ISIN.
+pub async fn rechercher_titres(http: &reqwest::Client, requete: &str) -> Result<Vec<Titre>, String> {
     let r: Recherche = http
         .get("https://query2.finance.yahoo.com/v1/finance/search")
         .query(&[("q", requete), ("quotesCount", "20"), ("newsCount", "0"), ("lang", "fr-FR"), ("region", "FR")])
@@ -271,23 +258,26 @@ pub async fn rechercher_titres(http: &reqwest::Client, requete: &str, monde: boo
         .into_iter()
         .filter(|q| matches!(q.quote_type.as_deref(), Some("EQUITY") | Some("ETF")))
         .filter_map(|q| {
-            let (place, devise) = place_et_devise(&q.symbol, q.exchange.as_deref(), monde)?;
+            let place = place_euro(&q.symbol)?;
             Some(Titre {
                 nom: q.longname.or(q.shortname).unwrap_or_else(|| q.symbol.clone()),
                 place: q.place.unwrap_or_else(|| place.into()),
-                type_: if q.quote_type.as_deref() == Some("ETF") { "ETF".into() } else { "Action".into() },
+                type_: if q.quote_type.as_deref() == Some("ETF") { "ETF" } else { "Action" }.into(),
                 symbole: q.symbol,
-                devise: devise.into(),
             })
         })
         .collect();
-    // Paris en premier, puis la cotation principale américaine, puis le reste.
-    titres.sort_by_key(|t| if t.symbole.ends_with(".PA") { 0 } else if t.devise == "USD" { 1 } else { 2 });
+    // Paris en premier (tri stable : l'ordre de pertinence de Yahoo est conservé pour le reste).
+    titres.sort_by_key(|t| !t.symbole.ends_with(".PA"));
     Ok(titres)
 }
 
 /// Historique quotidien (`periode` : 1y, 2y, 5y…).
-pub async fn historique(http: &reqwest::Client, symbole: &str, periode: &str) -> Result<Vec<escarcelle_core::analyse::Bougie>, String> {
+pub async fn historique(
+    http: &reqwest::Client,
+    symbole: &str,
+    periode: &str,
+) -> Result<Vec<escarcelle_core::analyse::Bougie>, String> {
     let url = format!("https://query1.finance.yahoo.com/v8/finance/chart/{symbole}");
     let c: Chart = http
         .get(url)
@@ -301,9 +291,8 @@ pub async fn historique(http: &reqwest::Client, symbole: &str, periode: &str) ->
         .await
         .map_err(|e| format!("{symbole} : historique illisible ({e})"))?;
     let r = c.chart.result.and_then(|mut r| r.pop()).ok_or_else(|| format!("{symbole} : pas d'historique"))?;
-    let (_, f) = normaliser_devise(r.meta.currency.as_deref());
     let q = r.indicators.and_then(|mut i| i.quote.pop()).ok_or_else(|| format!("{symbole} : pas d'historique"))?;
-    let val = |v: &Vec<Option<f64>>, i: usize| v.get(i).copied().flatten().map(|x| x * f);
+    let val = |v: &Vec<Option<f64>>, i: usize| v.get(i).copied().flatten().filter(|x| cours_valide(*x));
     Ok(r.timestamp
         .iter()
         .enumerate()
@@ -315,7 +304,7 @@ pub async fn historique(http: &reqwest::Client, symbole: &str, periode: &str) ->
                 haut: val(&q.high, i).unwrap_or(cloture),
                 bas: val(&q.low, i).unwrap_or(cloture),
                 cloture,
-                volume: q.volume.get(i).copied().flatten().unwrap_or(0.0),
+                volume: q.volume.get(i).copied().flatten().filter(|v| v.is_finite() && *v >= 0.0).unwrap_or(0.0),
             })
         })
         .collect())
@@ -334,6 +323,9 @@ fn date_iso(t: i64) -> String {
 
 /// Historique des dividendes sur 10 ans et cours mensuels (une seule requête, légère).
 pub async fn dividendes(http: &reqwest::Client, symbole: &str) -> Result<InfosDividendes, String> {
+    if !symbole_valide(symbole) {
+        return Err(format!("« {symbole} » n'est pas un symbole de cotation valide"));
+    }
     let url = format!("https://query1.finance.yahoo.com/v8/finance/chart/{symbole}");
     let c: Chart = http
         .get(url)
@@ -347,36 +339,44 @@ pub async fn dividendes(http: &reqwest::Client, symbole: &str) -> Result<InfosDi
         .await
         .map_err(|e| format!("{symbole} : dividendes illisibles ({e})"))?;
     let r = c.chart.result.and_then(|mut r| r.pop()).ok_or_else(|| format!("{symbole} : titre introuvable"))?;
-    let (_, f) = normaliser_devise(r.meta.currency.as_deref());
     let mut versements: Vec<(String, i64)> = r
         .events
-        .map(|e| e.dividends.into_values().map(|d| (date_iso(d.date), (d.amount * f * 1_000_000.0).round() as i64)).collect())
+        .map(|e| {
+            e.dividends
+                .into_values()
+                .filter(|d| cours_valide(d.amount))
+                .map(|d| (date_iso(d.date), (d.amount * 1_000_000.0).round() as i64))
+                .collect()
+        })
         .unwrap_or_default();
     versements.sort();
     let maintenant = r.meta.regular_market_time.or_else(|| r.timestamp.last().copied()).unwrap_or(0);
     let cible = maintenant - 365 * 86_400;
     let cours_un_an_micro = r.indicators.and_then(|mut i| i.quote.pop()).and_then(|q| {
         let i = r.timestamp.iter().rposition(|&t| t <= cible)?;
-        q.close.get(i).copied().flatten().map(|c| (c * f * 1_000_000.0).round() as i64)
+        q.close.get(i).copied().flatten().filter(|c| cours_valide(*c)).map(|c| (c * 1_000_000.0).round() as i64)
     });
     Ok(InfosDividendes { versements, cours_un_an_micro })
 }
 
 /// Pays probable d'une société à partir de sa place de cotation, faute d'ISIN.
-/// Approximation : une société néerlandaise peut être cotée à Paris (Stellantis, Airbus…),
-/// une société américaine à Francfort (NVD.F).
+/// Approximation : une société néerlandaise peut être cotée à Paris (Stellantis, Airbus…).
 pub fn pays_par_place(symbole: &str) -> Option<&'static str> {
-    const PAYS: [(&str, &str); 21] = [
-        (".PA", "FR"), (".AS", "NL"), (".BR", "BE"), (".LS", "PT"), (".MI", "IT"), (".MC", "ES"),
-        (".DE", "DE"), (".F", "DE"), (".HE", "FI"), (".VI", "AT"), (".IR", "IE"), (".AT", "GR"),
-        (".SW", "CH"), (".L", "GB"), (".ST", "SE"), (".CO", "DK"), (".OL", "NO"), (".TO", "CA"),
-        (".T", "JP"), (".HK", "HK"), (".AX", "AU"),
+    const PAYS: [(&str, &str); 12] = [
+        (".PA", "FR"),
+        (".AS", "NL"),
+        (".BR", "BE"),
+        (".LS", "PT"),
+        (".MI", "IT"),
+        (".MC", "ES"),
+        (".DE", "DE"),
+        (".F", "DE"),
+        (".HE", "FI"),
+        (".VI", "AT"),
+        (".IR", "IE"),
+        (".AT", "GR"),
     ];
-    match PAYS.iter().find(|(suf, _)| symbole.ends_with(suf)) {
-        Some((_, p)) => Some(p),
-        None if !symbole.contains('.') => Some("US"),
-        None => None,
-    }
+    PAYS.iter().find(|(suf, _)| symbole.ends_with(suf)).map(|(_, p)| *p)
 }
 
 #[cfg(test)]
@@ -384,16 +384,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn devises_et_places() {
-        assert_eq!(normaliser_devise(Some("GBp")), ("GBP".to_string(), 0.01));
-        assert_eq!(normaliser_devise(Some("USD")), ("USD".to_string(), 1.0));
-        assert_eq!(symbole_change("USD"), "EURUSD=X");
-        assert_eq!(place_et_devise("NVDA", Some("NMS"), true), Some(("États-Unis", "USD")));
-        assert_eq!(place_et_devise("NVDA", Some("NMS"), false), None);
-        assert_eq!(place_et_devise("NESN.SW", None, true), Some(("Zurich", "CHF")));
-        assert_eq!(place_et_devise("MC.PA", None, false), Some(("Paris", "EUR")));
-        assert_eq!(pays_par_place("NVDA"), Some("US"));
-        assert_eq!(pays_par_place("NESN.SW"), Some("CH"));
+    fn symboles() {
+        for ok in ["MC.PA", "DCAM.PA", "^FCHI", "EURUSD=X", "BRK-B", "0P0000XYZ.F"] {
+            assert!(symbole_valide(ok), "{ok}");
+        }
+        for ko in ["", "MC PA", "MC.PA/../x", "A?b=c", "#", "é.PA", "ABCDEFGHIJKLMNOPQRSTU"] {
+            assert!(!symbole_valide(ko), "{ko}");
+        }
+    }
+
+    #[test]
+    fn places_et_pays() {
+        assert_eq!(place_euro("NVDA"), None);
+        assert_eq!(place_euro("NESN.SW"), None);
+        assert_eq!(pays_par_place("MC.PA"), Some("FR"));
+        assert_eq!(pays_par_place("NVDA"), None);
+        assert_eq!(pays_par_place("NESN.SW"), None);
+        assert_eq!(devise(Some("eur")), "EUR");
+        assert_eq!(devise(None), "EUR");
+        assert!(!cours_valide(f64::NAN) && !cours_valide(0.0) && !cours_valide(-1.0) && cours_valide(0.01));
     }
 
     #[test]
@@ -406,9 +415,13 @@ mod tests {
     #[test]
     fn reconnaissance_isin() {
         assert!(est_isin("FR001400U5Q4"));
-        assert!(est_isin("IE0002XZSHO1"));
+        assert!(est_isin("FR0000121014"));
+        assert!(!est_isin("FR0000121015")); // clé de contrôle fausse
         assert!(!est_isin("DCAM.PA"));
         assert!(!est_isin("fr001400u5q4"));
+        // Saisie accentuée de 12 octets : ne doit pas planter.
+        assert!(!est_isin("Aé000012101"));
+        assert!(!est_isin("VALLOUREC É"));
     }
 
     #[test]

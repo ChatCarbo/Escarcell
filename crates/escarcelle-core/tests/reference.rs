@@ -1,9 +1,15 @@
-//! Cas de référence de la spécification v0.1 (§1.4 et §3.6) et propriétés.
+//! Cas de référence des livrets (règles des quinzaines, changements de taux, plafonds) et propriétés.
+//!
+//! Source des règles de dates : service-public.gouv.fr, fiche F2365 « Livret A » (consultée le 24/11/2026),
+//! https://www.service-public.gouv.fr/particuliers/vosdroits/F2365 :
+//! « Les intérêts sont calculés le 1er et le 16 de chaque mois » ; dépôt jusqu'au 15 : pris en compte au 16 ;
+//! dépôt à partir du 16 : au 1er du mois suivant ; retrait jusqu'au 15 : solde arrêté au dernier jour du mois
+//! précédent ; retrait à partir du 16 : solde arrêté au 15 ; intérêts ajoutés au capital au 31 décembre.
 
-use escarcelle_core::impot::{calculer_ir, eligible_lep, seuil_rfr_lep, Foyer};
+use escarcelle_core::conseil_livret::{conseil_retrait, conseil_versement};
 use escarcelle_core::livret::{simuler, Mouvement};
 use escarcelle_core::params::embarque;
-use escarcelle_core::{Date, Money, Rate};
+use escarcelle_core::{Date, Money};
 
 fn d(s: &str) -> Date {
     s.parse().unwrap()
@@ -11,8 +17,59 @@ fn d(s: &str) -> Date {
 fn eur(e: i64) -> Money {
     Money::from_euros(e)
 }
-fn pct(s: &str) -> Rate {
-    Rate::parse_percent(s).unwrap()
+
+// ---------- Exemples de dates de la fiche F2365 (service-public.gouv.fr) ----------
+
+#[test]
+fn f2365_depot_entre_le_1er_et_le_15_mai_pris_en_compte_le_16_mai() {
+    for j in 1..=15 {
+        let c = conseil_versement(Date::new(2026, 5, j).unwrap());
+        assert_eq!(c.remunere_a_partir_du, d("2026-05-16"), "dépôt le {j} mai");
+    }
+}
+
+#[test]
+fn f2365_depot_entre_le_16_et_le_31_mai_pris_en_compte_le_1er_juin() {
+    for j in 16..=31 {
+        let c = conseil_versement(Date::new(2026, 5, j).unwrap());
+        assert_eq!(c.remunere_a_partir_du, d("2026-06-01"), "dépôt le {j} mai");
+    }
+}
+
+#[test]
+fn f2365_retrait_entre_le_1er_et_le_15_mai_solde_arrete_au_30_avril() {
+    for j in 1..=15 {
+        let c = conseil_retrait(
+            Date::new(2026, 5, j).unwrap(),
+            eur(1_000),
+            embarque::livret_a().taux.at(d("2026-05-01")).copied().unwrap(),
+        );
+        // Le montant retiré ne rapporte plus à partir du 1er mai : le solde rémunéré est celui du 30 avril.
+        assert_eq!(c.non_remunere_depuis, d("2026-05-01"), "retrait le {j} mai");
+    }
+}
+
+#[test]
+fn f2365_retrait_entre_le_16_et_le_31_mai_solde_arrete_au_15_mai() {
+    for j in 16..=31 {
+        let c = conseil_retrait(
+            Date::new(2026, 5, j).unwrap(),
+            eur(1_000),
+            embarque::livret_a().taux.at(d("2026-05-01")).copied().unwrap(),
+        );
+        assert_eq!(c.non_remunere_depuis, d("2026-05-16"), "retrait le {j} mai");
+    }
+}
+
+#[test]
+fn f2365_interets_ajoutes_au_capital_au_31_decembre() {
+    // 1 000 € versés le 1er janvier 2027 (rémunérés à partir du 16 janvier) : les intérêts de 2027
+    // ne sont ajoutés au solde qu'en fin d'année, puis rapportent à leur tour en 2028.
+    let r = simuler(&[Mouvement::depot(d("2027-01-01"), eur(1_000))], &embarque::livret_a().taux, 2028).unwrap();
+    assert_eq!(r[0].annee, 2027);
+    assert!(r[0].interets > Money::ZERO);
+    assert_eq!(r[0].solde_fin, eur(1_000) + r[0].interets);
+    assert!(r[1].interets > r[0].interets, "les intérêts capitalisés rapportent l'année suivante");
 }
 
 // ---------- Livrets ----------
@@ -30,17 +87,14 @@ fn spec_1_4_livret_a_changement_de_taux() {
 fn depot_fin_decembre_compte_l_annee_suivante() {
     let r = simuler(&[Mouvement::depot(d("2025-12-20"), eur(1_000))], &embarque::livret_a().taux, 2026).unwrap();
     assert_eq!(r[0].annee, 2026); // aucune quinzaine rémunérée en 2025
-    // 2026 : 2 quinzaines à 1,70 %, 12 à 1,50 %, 10 à 1,70 % → 1000 × 0,384 / 24 = 16,00
+                                  // 2026 : 2 quinzaines à 1,70 %, 12 à 1,50 %, 10 à 1,70 % → 1000 × 0,384 / 24 = 16,00
     assert_eq!(r[0].interets, Money::from_cents(1600));
 }
 
 #[test]
 fn aller_retour_dans_la_quinzaine_ne_rapporte_rien() {
     let r = simuler(
-        &[
-            Mouvement::depot(d("2026-03-02"), eur(5_000)),
-            Mouvement::retrait(d("2026-03-14"), eur(5_000)),
-        ],
+        &[Mouvement::depot(d("2026-03-02"), eur(5_000)), Mouvement::retrait(d("2026-03-14"), eur(5_000))],
         &embarque::livret_a().taux,
         2026,
     )
@@ -52,10 +106,7 @@ fn aller_retour_dans_la_quinzaine_ne_rapporte_rien() {
 fn retrait_compte_des_le_debut_de_la_quinzaine() {
     // Dépôt le 01/01 (effet q2), retrait le 30/12 (effet q24) : 22 quinzaines rémunérées.
     let r = simuler(
-        &[
-            Mouvement::depot(d("2026-01-01"), eur(2_400)),
-            Mouvement::retrait(d("2026-12-30"), eur(2_400)),
-        ],
+        &[Mouvement::depot(d("2026-01-01"), eur(2_400)), Mouvement::retrait(d("2026-12-30"), eur(2_400))],
         &embarque::lep().taux,
         2026,
     )
@@ -81,66 +132,6 @@ fn taux_manquant_signale() {
     assert!(r.is_err());
 }
 
-// ---------- Impôt ----------
-
-#[test]
-fn spec_3_6_seul_35000() {
-    let r = calculer_ir(eur(35_000), &Foyer::seul(), &embarque::ir_revenus_2025()).unwrap();
-    assert_eq!(r.impot, eur(3_604));
-    assert_eq!(r.tmi, pct("30"));
-    assert!(!r.plafonnement_applique);
-    assert_eq!(r.decote, Money::ZERO);
-}
-
-#[test]
-fn spec_3_6_couple_2_enfants_60000_avec_decote() {
-    let r = calculer_ir(eur(60_000), &Foyer::couple(2), &embarque::ir_revenus_2025()).unwrap();
-    assert_eq!(r.demi_parts, 6);
-    assert_eq!(r.impot_brut, eur(2_772));
-    assert_eq!(r.decote, Money::from_cents(22_867));
-    assert_eq!(r.impot, eur(2_543));
-    assert_eq!(r.tmi, pct("11"));
-    assert_eq!(r.taux_marginal_effectif, pct("15,9775"));
-}
-
-#[test]
-fn spec_3_6_sous_le_seuil() {
-    let r = calculer_ir(eur(10_000), &Foyer::seul(), &embarque::ir_revenus_2025()).unwrap();
-    assert_eq!(r.impot, Money::ZERO);
-    assert_eq!(r.tmi, Rate::ZERO);
-}
-
-#[test]
-fn plafonnement_du_quotient_familial() {
-    // Couple + 2 enfants, 200 000 € : avantage 10 289 € > 2 × 1 807 €.
-    let r = calculer_ir(eur(200_000), &Foyer::couple(2), &embarque::ir_revenus_2025()).unwrap();
-    assert!(r.plafonnement_applique);
-    assert_eq!(r.impot, eur(45_987));
-    assert_eq!(r.tmi, pct("41"));
-}
-
-#[test]
-fn parts() {
-    assert_eq!(Foyer::seul().demi_parts(), 2);
-    assert_eq!(Foyer::couple(0).demi_parts(), 4);
-    assert_eq!(Foyer::couple(2).demi_parts(), 6);
-    assert_eq!(Foyer::couple(3).demi_parts(), 8);
-    let isole = Foyer { enfants: 1, parent_isole: true, ..Foyer::seul() };
-    assert_eq!(isole.demi_parts(), 4);
-    // Paramètre « parent isolé » non renseigné dans le jeu embarqué : erreur explicite.
-    assert!(calculer_ir(eur(50_000), &isole, &embarque::ir_revenus_2025()).is_err());
-}
-
-#[test]
-fn seuils_lep_2026() {
-    let p = embarque::lep_rfr_2026();
-    assert_eq!(seuil_rfr_lep(2, &p), eur(23_028));
-    assert_eq!(seuil_rfr_lep(4, &p), eur(35_326));
-    assert_eq!(seuil_rfr_lep(6, &p), eur(47_624));
-    assert!(eligible_lep(eur(23_028), 2, &p));
-    assert!(!eligible_lep(Money::from_cents(2_302_801), 2, &p));
-}
-
 // ---------- Propriétés (générateur déterministe, sans dépendance) ----------
 
 struct Lcg(u64);
@@ -148,21 +139,6 @@ impl Lcg {
     fn next(&mut self, max: u64) -> u64 {
         self.0 = self.0.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
         (self.0 >> 33) % max
-    }
-}
-
-#[test]
-fn propriete_impot_croissant_et_taux_coherents() {
-    let p = embarque::ir_revenus_2025();
-    for foyer in [Foyer::seul(), Foyer::couple(0), Foyer::couple(1), Foyer::couple(3)] {
-        let mut prec = Money::ZERO;
-        for e in (0..=400_000).step_by(250) {
-            let r = calculer_ir(eur(e), &foyer, &p).unwrap();
-            assert!(r.impot >= prec, "impôt non croissant à {e} € pour {foyer:?}");
-            assert!(r.taux_moyen <= r.tmi.max(r.taux_moyen), "taux moyen incohérent");
-            assert!(r.taux_moyen <= pct("45"));
-            prec = r.impot;
-        }
     }
 }
 

@@ -11,19 +11,16 @@
     { id: 'tableau', libelle: 'Tableau de bord' },
     { id: 'livrets', libelle: 'Livrets' },
     { id: 'pea', libelle: 'PEA' },
-    { id: 'cto', libelle: 'CTO' },
   ];
   let version = $state('');
 
   let page = $state('tableau');
-  let catalogue = $state(null);
 
   let maj = $state(null); // nouvelle version disponible
   let majFermee = $state(false);
 
   onMount(async () => {
     version = await getVersion().catch(() => '');
-    catalogue = await api.etablissements();
     try {
       if (await api.verificationAuto(null)) {
         const r = await api.verifierMiseAJour();
@@ -73,9 +70,7 @@
     {:else if page === 'livrets'}
       <Livrets />
     {:else if page === 'pea'}
-      <Portefeuille enveloppe="PEA" />
-    {:else if page === 'cto'}
-      <Portefeuille enveloppe="CTO" />
+      <Portefeuille />
     {:else if page === 'parametres'}
       <Parametres />
     {/if}

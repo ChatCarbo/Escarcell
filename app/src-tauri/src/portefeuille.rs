@@ -1,13 +1,16 @@
-//! Portefeuilles d'actions PEA et CTO : suivi de lignes (titre, quantité, PRU), cours automatiques,
-//! plus ou moins-values, dividendes et fiscalité propre à chaque enveloppe.
+//! PEA : suivi de lignes (titre, quantité, PRU), cours automatiques, plus ou moins-values et dividendes.
 //! Pas d'établissement ni de journal d'opérations : on saisit ce qu'on détient.
+//! Seuls les titres cotés en euros sont acceptés.
 
-use escarcelle_core::dividendes::{self as div, Enveloppe, Fiscalite, Versement};
+use escarcelle_core::dividendes::{self as div, Versement};
 use escarcelle_core::{Date, Money, Price, Rate};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::cours::{coter, dividendes, eligibilite_pea, est_isin, historique, pays_par_place, rechercher, rechercher_titres, symbole_change};
+use crate::cours::{
+    coter, dividendes, eligibilite_pea, est_isin, historique, pays_par_place, rechercher, rechercher_titres,
+    symbole_valide,
+};
 use crate::store::{Position, Store};
 use crate::Etat;
 use escarcelle_core::analyse::{analyser, Tendance, TypeNiveau};
@@ -18,12 +21,23 @@ fn err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
-fn enveloppe(code: &str) -> Resultat<Enveloppe> {
-    Enveloppe::depuis_code(code).ok_or_else(|| format!("enveloppe inconnue : {code}"))
-}
-
 fn maintenant() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+}
+
+/// Quantité maximale acceptée (un milliard de titres) : garde les calculs loin des dépassements.
+const QUANTITE_MAX_MICRO: i64 = 1_000_000_000 * 1_000_000;
+/// PRU ou cours maximal accepté (un million d'euros par titre).
+const PRIX_MAX_MICRO: i64 = 1_000_000 * 1_000_000;
+
+fn verifier_saisie(quantite_micro: i64, pru_micro: i64) -> Resultat<()> {
+    if quantite_micro <= 0 || quantite_micro > QUANTITE_MAX_MICRO {
+        return Err("La quantité doit être positive (un milliard de titres au plus).".into());
+    }
+    if !(0..=PRIX_MAX_MICRO).contains(&pru_micro) {
+        return Err("Le PRU doit être compris entre 0 et 1 000 000 €.".into());
+    }
+    Ok(())
 }
 
 /// Retenue à la source d'un pays : réglage de l'utilisateur, sinon valeur par défaut.
@@ -31,7 +45,9 @@ fn maintenant() -> i64 {
 pub fn retenue(db: &Store, pays: &str) -> Resultat<Option<Rate>> {
     if let Some(v) = db.parametre(&format!("retenue.{pays}")).map_err(err)? {
         if let Ok(micro) = v.parse::<i64>() {
-            return Ok(Some(Rate::from_micro(micro)));
+            if (0..=1_000_000).contains(&micro) {
+                return Ok(Some(Rate::from_micro(micro)));
+            }
         }
     }
     Ok(div::retenue_par_defaut(pays))
@@ -54,13 +70,7 @@ pub struct LigneDto {
     pub quantite_micro: i64,
     /// PRU en euros.
     pub pru_micro: i64,
-    /// Devise de cotation ; `cours_micro` et `div_par_action_micro` sont exprimés dans cette devise.
-    pub devise: String,
-    /// Unités de devise pour 1 euro (1 000 000 pour l'euro) ; absent si le taux n'est pas connu.
-    pub taux_change_micro: Option<i64>,
     pub cours_micro: Option<i64>,
-    /// Cours converti en euros.
-    pub cours_eur_micro: Option<i64>,
     pub cours_horodatage: Option<i64>,
     pub cours_source: Option<String>,
     pub investi_cents: i64,
@@ -68,9 +78,6 @@ pub struct LigneDto {
     pub valeur_cents: i64,
     pub pv_cents: i64,
     pub pv_micro: i64,
-    /// Impôt si la plus-value était réalisée aujourd'hui (CTO), et plus-value nette.
-    pub impot_pv_cents: i64,
-    pub pv_nette_cents: i64,
     /// Variation du cours sur un an (millionièmes), si connue.
     pub variation_un_an_micro: Option<i64>,
     // Dividendes
@@ -85,22 +92,16 @@ pub struct LigneDto {
     pub retenue_micro: i64,
     pub retenue_connue: bool,
     pub div_retenue_cents: i64,
-    pub div_credit_cents: i64,
-    pub div_impot_cents: i64,
-    pub div_ps_cents: i64,
     pub div_net_cents: i64,
 }
 
 #[derive(Serialize)]
 pub struct PortefeuilleDto {
-    pub enveloppe: String,
     pub lignes: Vec<LigneDto>,
     pub investi_cents: i64,
     pub valeur_cents: i64,
     pub pv_cents: i64,
     pub pv_micro: i64,
-    pub impot_pv_cents: i64,
-    pub pv_nette_cents: i64,
     pub div_brut_cents: i64,
     pub div_net_cents: i64,
     /// Rendement brut des dividendes sur la valeur du portefeuille.
@@ -117,107 +118,87 @@ fn ratio(num: i64, den: i64) -> i64 {
     }
 }
 
-/// Calcul du portefeuille d'une enveloppe : investi = quantité × PRU, valeur = quantité × cours.
-pub fn portefeuille(etat: &Etat, code: &str) -> Resultat<PortefeuilleDto> {
-    let env = enveloppe(code)?;
-    let fisc = Fiscalite::v2026();
-    let jour = crate::commands::aujourd_hui();
-    let db = etat.db.lock().map_err(err)?;
-    let mut lignes = Vec::new();
-    for p in db.positions(code).map_err(err)? {
-        let dernier = db.dernier_cours(&p.symbole).map_err(err)?;
-        // Taux de change : unités de devise pour 1 euro.
-        let taux_change = if p.devise == "EUR" {
-            Some(1_000_000)
-        } else {
-            db.dernier_cours(&symbole_change(&p.devise)).map_err(err)?.map(|c| c.cours_micro).filter(|t| *t > 0)
-        };
-        let en_euros = |micro: i64| taux_change.map(|t| (micro as i128 * 1_000_000 / t as i128) as i64);
-        let investi = Price::from_micro(p.pru_micro).valeur(p.quantite_micro);
-        let cours = dernier.as_ref().map(|c| c.cours_micro);
-        let cours_eur = cours.and_then(en_euros);
-        let valeur = Price::from_micro(cours_eur.unwrap_or(p.pru_micro)).valeur(p.quantite_micro);
-        let pv = valeur - investi;
-        let impot_pv = div::impot_plus_value(pv, env, &fisc);
+/// Calcul d'une ligne : investi = quantité × PRU, valeur = quantité × cours.
+fn ligne(db: &Store, p: Position, jour: Date) -> Resultat<LigneDto> {
+    let dernier = db.dernier_cours(&p.symbole).map_err(err)?;
+    let investi = Price::from_micro(p.pru_micro).valeur(p.quantite_micro);
+    let cours = dernier.as_ref().map(|c| c.cours_micro).filter(|c| *c > 0);
+    let valeur = Price::from_micro(cours.unwrap_or(p.pru_micro)).valeur(p.quantite_micro);
+    let pv = valeur - investi;
 
-        let historique: Vec<Versement> = db
-            .dividendes(&p.symbole)
-            .map_err(err)?
-            .into_iter()
-            .filter_map(|(d, m)| Some(Versement { date: d.parse::<Date>().ok()?, montant: Price::from_micro(m) }))
-            .collect();
-        let syn = div::synthese(&historique, jour);
-        let pays = pays_ligne(&p);
-        let taux = match pays.as_deref() {
-            Some(code_pays) => retenue(&db, code_pays)?,
-            None => None,
-        };
-        let brut = Price::from_micro(en_euros(syn.annuel_par_action.micro()).unwrap_or(0)).valeur(p.quantite_micro);
-        let net = div::dividende_net(brut, taux.unwrap_or(Rate::ZERO), env, &fisc);
-        let infos = db.infos_titre(&p.symbole).map_err(err)?;
-        let variation = match (infos.and_then(|i| i.0), cours) {
-            (Some(avant), Some(c)) if avant > 0 => Some(ratio(c - avant, avant)),
-            _ => None,
-        };
+    let historique: Vec<Versement> = db
+        .dividendes(&p.symbole)
+        .map_err(err)?
+        .into_iter()
+        .filter_map(|(d, m)| Some(Versement { date: d.parse::<Date>().ok()?, montant: Price::from_micro(m) }))
+        .collect();
+    let syn = div::synthese(&historique, jour);
+    let pays = pays_ligne(&p);
+    let taux = match pays.as_deref() {
+        Some(code_pays) => retenue(db, code_pays)?,
+        None => None,
+    };
+    let brut = syn.annuel_par_action.valeur(p.quantite_micro);
+    let net = div::dividende_net(brut, taux.unwrap_or(Rate::ZERO));
+    let variation = match (db.infos_titre(&p.symbole).map_err(err)?.and_then(|i| i.0), cours) {
+        (Some(avant), Some(c)) if avant > 0 => Some(ratio(c - avant, avant)),
+        _ => None,
+    };
 
-        lignes.push(LigneDto {
-            id: p.id,
-            isin: p.isin.clone(),
-            symbole: p.symbole.clone(),
-            nom: p.nom.clone(),
-            pays,
-            quantite_micro: p.quantite_micro,
-            pru_micro: p.pru_micro,
-            devise: p.devise.clone(),
-            taux_change_micro: taux_change,
-            cours_micro: cours,
-            cours_eur_micro: cours_eur,
-            cours_horodatage: dernier.as_ref().map(|c| c.horodatage),
-            cours_source: dernier.map(|c| c.source),
-            investi_cents: investi.cents(),
-            valeur_cents: valeur.cents(),
-            pv_cents: pv.cents(),
-            pv_micro: ratio(pv.cents(), investi.cents()),
-            impot_pv_cents: impot_pv.cents(),
-            pv_nette_cents: (pv - impot_pv).cents(),
-            variation_un_an_micro: variation,
-            div_par_action_micro: syn.annuel_par_action.micro(),
-            div_frequence: syn.frequence,
-            div_rendement_micro: cours.and_then(|c| div::rendement(syn.annuel_par_action, Price::from_micro(c))).map(|r| r.micro()),
-            div_croissance_micro: syn.croissance_annuelle.map(|r| r.micro()),
-            div_prochain_estime: syn.prochain_estime.map(|d| d.to_string()),
-            div_dernier_date: syn.dernier.map(|v| v.date.to_string()),
-            div_dernier_micro: syn.dernier.map(|v| v.montant.micro()),
-            div_brut_cents: brut.cents(),
-            retenue_micro: taux.map(|t| t.micro()).unwrap_or(0),
-            retenue_connue: taux.is_some(),
-            div_retenue_cents: net.retenue_etrangere.cents(),
-            div_credit_cents: net.credit_impot.cents(),
-            div_impot_cents: net.impot_francais.cents(),
-            div_ps_cents: net.prelevements_sociaux.cents(),
-            div_net_cents: net.net.cents(),
-        });
-    }
+    Ok(LigneDto {
+        id: p.id,
+        cours_horodatage: dernier.as_ref().map(|c| c.horodatage),
+        cours_source: dernier.map(|c| c.source),
+        isin: p.isin,
+        symbole: p.symbole,
+        nom: p.nom,
+        pays,
+        quantite_micro: p.quantite_micro,
+        pru_micro: p.pru_micro,
+        cours_micro: cours,
+        investi_cents: investi.cents(),
+        valeur_cents: valeur.cents(),
+        pv_cents: pv.cents(),
+        pv_micro: ratio(pv.cents(), investi.cents()),
+        variation_un_an_micro: variation,
+        div_par_action_micro: syn.annuel_par_action.micro(),
+        div_frequence: syn.frequence,
+        div_rendement_micro: cours
+            .and_then(|c| div::rendement(syn.annuel_par_action, Price::from_micro(c)))
+            .map(|r| r.micro()),
+        div_croissance_micro: syn.croissance_annuelle.map(|r| r.micro()),
+        div_prochain_estime: syn.prochain_estime.map(|d| d.to_string()),
+        div_dernier_date: syn.dernier.map(|v| v.date.to_string()),
+        div_dernier_micro: syn.dernier.map(|v| v.montant.micro()),
+        div_brut_cents: brut.cents(),
+        retenue_micro: taux.map(|t| t.micro()).unwrap_or(0),
+        retenue_connue: taux.is_some(),
+        div_retenue_cents: net.retenue_etrangere.cents(),
+        div_net_cents: net.net.cents(),
+    })
+}
+
+/// Calcul du portefeuille à partir de la base (sans accès réseau).
+pub fn calculer(db: &Store, jour: Date) -> Resultat<PortefeuilleDto> {
+    let lignes =
+        db.positions().map_err(err)?.into_iter().map(|p| ligne(db, p, jour)).collect::<Resultat<Vec<LigneDto>>>()?;
     let somme = |f: fn(&LigneDto) -> i64| lignes.iter().map(f).sum::<i64>();
     let investi = somme(|l: &LigneDto| l.investi_cents);
     let valeur = somme(|l: &LigneDto| l.valeur_cents);
     let pv = valeur - investi;
-    let impot_pv = somme(|l: &LigneDto| l.impot_pv_cents);
     let div_brut = somme(|l: &LigneDto| l.div_brut_cents);
     let div_net = somme(|l: &LigneDto| l.div_net_cents);
     let poids: i64 = lignes.iter().filter(|l| l.div_croissance_micro.is_some()).map(|l| l.div_brut_cents).sum();
     let div_croissance = (poids > 0).then(|| {
-        let s: i128 = lignes.iter().filter_map(|l| Some(l.div_croissance_micro? as i128 * l.div_brut_cents as i128)).sum();
+        let s: i128 =
+            lignes.iter().filter_map(|l| Some(l.div_croissance_micro? as i128 * l.div_brut_cents as i128)).sum();
         (s / poids as i128) as i64
     });
     Ok(PortefeuilleDto {
-        enveloppe: code.into(),
         investi_cents: investi,
         valeur_cents: valeur,
         pv_cents: pv,
         pv_micro: ratio(pv, investi),
-        impot_pv_cents: impot_pv,
-        pv_nette_cents: pv - impot_pv,
         div_brut_cents: div_brut,
         div_net_cents: div_net,
         div_rendement_micro: ratio(div_brut, valeur),
@@ -226,36 +207,32 @@ pub fn portefeuille(etat: &Etat, code: &str) -> Resultat<PortefeuilleDto> {
     })
 }
 
-/// Valeur et plus-value latente d'une enveloppe, pour le tableau de bord.
-pub fn totaux(etat: &Etat, code: &str) -> Resultat<(Money, Money, Money)> {
-    let p = portefeuille(etat, code)?;
+pub fn portefeuille(etat: &Etat) -> Resultat<PortefeuilleDto> {
+    calculer(&etat.db(), crate::commands::aujourd_hui())
+}
+
+/// Valeur, plus-value latente et dividendes nets annuels du PEA, pour le tableau de bord.
+pub fn totaux(etat: &Etat) -> Resultat<(Money, Money, Money)> {
+    let p = portefeuille(etat)?;
     Ok((Money::from_cents(p.valeur_cents), Money::from_cents(p.pv_cents), Money::from_cents(p.div_net_cents)))
 }
 
-/// Met à jour le taux de change euro → devise (cours du symbole EURUSD=X, etc.).
-async fn actualiser_change(etat: &Etat, devise: &str) -> Result<(), String> {
-    let symbole = symbole_change(devise);
-    let c = coter(&etat.http, &symbole).await.map_err(|e| format!("taux de change {devise} : {e}"))?;
-    etat.db.lock().map_err(err)?.enregistrer_cotation(&symbole, c.cours_micro, c.horodatage, "Yahoo Finance").map_err(err)?;
-    Ok(())
-}
-
 /// Met à jour les dividendes et le cours d'il y a un an d'un titre, au plus une fois par jour.
-async fn actualiser_dividendes(etat: &Etat, symbole: &str, forcer: bool) -> Result<(), String> {
-    let recent = etat.db.lock().map_err(err)?.infos_titre(symbole).map_err(err)?.map(|i| i.1);
-    if !forcer && recent.is_some_and(|maj| maintenant() - maj < 86_400) {
+async fn actualiser_dividendes(etat: &Etat, symbole: &str, forcer: bool) -> Resultat<()> {
+    let recent = etat.db().infos_titre(symbole).map_err(err)?.map(|i| i.1);
+    if !forcer && recent.is_some_and(|maj| (0..86_400).contains(&(maintenant() - maj))) {
         return Ok(());
     }
     let infos = dividendes(&etat.http, symbole).await?;
-    let mut db = etat.db.lock().map_err(err)?;
+    let mut db = etat.db();
     db.remplacer_dividendes(symbole, &infos.versements).map_err(err)?;
     db.definir_infos_titre(symbole, infos.cours_un_an_micro, maintenant()).map_err(err)?;
     Ok(())
 }
 
 #[tauri::command]
-pub fn positions(etat: State<'_, Etat>, enveloppe: String) -> Resultat<PortefeuilleDto> {
-    portefeuille(&etat, &enveloppe)
+pub fn positions(etat: State<'_, Etat>) -> Resultat<PortefeuilleDto> {
+    portefeuille(&etat)
 }
 
 #[derive(Deserialize)]
@@ -265,6 +242,7 @@ pub struct SaisieLigne {
     /// Symbole choisi dans les résultats de recherche (évite une nouvelle recherche).
     #[serde(default)]
     pub symbole: Option<String>,
+    #[serde(default)]
     pub nom: Option<String>,
     pub quantite_micro: i64,
     pub pru_micro: i64,
@@ -272,13 +250,16 @@ pub struct SaisieLigne {
     pub pays: Option<String>,
 }
 
-/// Ajoute une ligne : retrouve le symbole de cotation, enregistre la ligne, puis récupère le cours.
+/// Code pays saisi : deux lettres, en majuscules.
+fn code_pays(p: Option<String>) -> Option<String> {
+    p.map(|p| p.trim().to_ascii_uppercase()).filter(|p| p.len() == 2 && p.chars().all(|c| c.is_ascii_uppercase()))
+}
+
+/// Ajoute une ligne : retrouve le symbole de cotation, vérifie qu'il est coté en euros, enregistre la ligne,
+/// puis récupère le cours et les dividendes.
 #[tauri::command]
-pub async fn ajouter_position(etat: State<'_, Etat>, enveloppe: String, saisie: SaisieLigne) -> Resultat<PortefeuilleDto> {
-    self::enveloppe(&enveloppe)?;
-    if saisie.quantite_micro <= 0 || saisie.pru_micro < 0 {
-        return Err("La quantité doit être positive et le PRU ne peut pas être négatif.".into());
-    }
+pub async fn ajouter_position(etat: State<'_, Etat>, saisie: SaisieLigne) -> Resultat<PortefeuilleDto> {
+    verifier_saisie(saisie.quantite_micro, saisie.pru_micro)?;
     let id = saisie.identifiant.trim().to_uppercase();
     if id.is_empty() {
         return Err("Indiquez un ISIN ou un mnémonique.".into());
@@ -286,7 +267,7 @@ pub async fn ajouter_position(etat: State<'_, Etat>, enveloppe: String, saisie: 
     let isin = est_isin(&id).then(|| id.clone());
 
     // Résolution du symbole : on cherche l'ISIN ou le mnémonique ; à défaut, on garde la saisie telle quelle.
-    let (symbole, nom_trouve) = match saisie.symbole.clone().filter(|s| !s.is_empty()) {
+    let (symbole, nom_trouve) = match saisie.symbole.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) {
         Some(s) => (s, None),
         None => match rechercher(&etat.http, &id).await {
             Ok(Some((s, n))) => (s, n),
@@ -294,60 +275,59 @@ pub async fn ajouter_position(etat: State<'_, Etat>, enveloppe: String, saisie: 
             _ => (id.clone(), None),
         },
     };
-    let nom = saisie.nom.filter(|n| !n.trim().is_empty()).or(nom_trouve).unwrap_or_else(|| id.clone());
-
-    // Le cours est facultatif : la ligne est gardée même si la source ne répond pas.
-    let cotation = coter(&etat.http, &symbole).await.ok();
-    let devise = cotation.as_ref().map(|c| c.devise.clone()).unwrap_or_else(|| "EUR".into());
-    if enveloppe == "PEA" && devise != "EUR" {
-        return Err(format!("{symbole} est coté en {devise} : un PEA ne contient que des titres cotés en euros. Ajoutez-le plutôt au CTO."));
+    if !symbole_valide(&symbole) {
+        return Err(format!("« {symbole} » n'est pas un symbole de cotation valide."));
     }
-    etat.db
-        .lock()
-        .map_err(err)?
-        .ajouter_position(&Position {
+    let nom =
+        saisie.nom.map(|n| n.trim().to_string()).filter(|n| !n.is_empty()).or(nom_trouve).unwrap_or_else(|| id.clone());
+
+    // Le cours est facultatif : la ligne est gardée même si Yahoo ne répond pas.
+    let cotation = coter(&etat.http, &symbole).await.ok();
+    if let Some(c) = &cotation {
+        if c.devise != "EUR" {
+            return Err(format!(
+                "{symbole} est coté en {} : un PEA ne contient que des titres cotés en euros.",
+                c.devise
+            ));
+        }
+    }
+    {
+        let db = etat.db();
+        db.ajouter_position(&Position {
             id: 0,
-            enveloppe: enveloppe.clone(),
             isin,
             symbole: symbole.clone(),
             nom,
             quantite_micro: saisie.quantite_micro,
             pru_micro: saisie.pru_micro,
-            pays: saisie.pays.filter(|p| p.len() == 2).map(|p| p.to_uppercase()),
-            devise: devise.clone(),
+            pays: code_pays(saisie.pays),
         })
         .map_err(err)?;
-    if let Some(c) = cotation {
-        etat.db.lock().map_err(err)?.enregistrer_cotation(&symbole, c.cours_micro, c.horodatage, "Yahoo Finance").map_err(err)?;
-    }
-    if devise != "EUR" {
-        let _ = actualiser_change(&etat, &devise).await;
+        if let Some(c) = cotation {
+            db.enregistrer_cotation(&symbole, c.cours_micro, c.horodatage, c.source).map_err(err)?;
+        }
     }
     let _ = actualiser_dividendes(&etat, &symbole, false).await;
-    portefeuille(&etat, &enveloppe)
+    portefeuille(&etat)
 }
 
 #[tauri::command]
 pub fn modifier_position(
     etat: State<'_, Etat>,
-    enveloppe: String,
     id: i64,
     quantite_micro: i64,
     pru_micro: i64,
     pays: Option<String>,
 ) -> Resultat<PortefeuilleDto> {
-    if quantite_micro <= 0 || pru_micro < 0 {
-        return Err("La quantité doit être positive et le PRU ne peut pas être négatif.".into());
-    }
-    let pays = pays.map(|p| p.trim().to_uppercase()).filter(|p| p.len() == 2);
-    etat.db.lock().map_err(err)?.modifier_position(id, quantite_micro, pru_micro, pays.as_deref()).map_err(err)?;
-    portefeuille(&etat, &enveloppe)
+    verifier_saisie(quantite_micro, pru_micro)?;
+    etat.db().modifier_position(id, quantite_micro, pru_micro, code_pays(pays).as_deref()).map_err(err)?;
+    portefeuille(&etat)
 }
 
 #[tauri::command]
-pub fn supprimer_position(etat: State<'_, Etat>, enveloppe: String, id: i64) -> Resultat<PortefeuilleDto> {
-    etat.db.lock().map_err(err)?.supprimer_position(id).map_err(err)?;
-    portefeuille(&etat, &enveloppe)
+pub fn supprimer_position(etat: State<'_, Etat>, id: i64) -> Resultat<PortefeuilleDto> {
+    etat.db().supprimer_position(id).map_err(err)?;
+    portefeuille(&etat)
 }
 
 #[derive(Serialize)]
@@ -359,35 +339,20 @@ pub struct Actualisation {
 /// Met à jour le cours (et, une fois par jour, les dividendes) de chaque ligne.
 /// Les erreurs sont rendues sans bloquer les autres lignes.
 #[tauri::command]
-pub async fn actualiser_cours(etat: State<'_, Etat>, enveloppe: String) -> Resultat<Actualisation> {
-    let (symboles, devises): (Vec<String>, Vec<String>) = {
-        let db = etat.db.lock().map_err(err)?;
-        let lignes = db.positions(&enveloppe).map_err(err)?;
-        let mut s: Vec<String> = lignes.iter().map(|p| p.symbole.clone()).collect();
-        s.sort();
-        s.dedup();
-        let mut d: Vec<String> = lignes.into_iter().map(|p| p.devise).filter(|d| d != "EUR").collect();
-        d.sort();
-        d.dedup();
-        (s, d)
-    };
+pub async fn actualiser_cours(etat: State<'_, Etat>) -> Resultat<Actualisation> {
+    let mut symboles: Vec<String> = etat.db().positions().map_err(err)?.into_iter().map(|p| p.symbole).collect();
+    symboles.sort();
+    symboles.dedup();
     let mut erreurs = Vec::new();
-    for d in devises {
-        if let Err(e) = actualiser_change(&etat, &d).await {
-            erreurs.push(e);
-        }
-    }
     for s in symboles {
         match coter(&etat.http, &s).await {
-            Ok(c) if enveloppe == "PEA" && c.devise != "EUR" => {
+            Ok(c) if c.devise != "EUR" => {
                 erreurs.push(format!("{s} : coté en {}, un PEA ne contient que des titres cotés en euros", c.devise))
             }
             Ok(c) => {
-                etat.db
-                    .lock()
-                    .map_err(err)?
-                    .enregistrer_cotation(&s, c.cours_micro, c.horodatage, "Yahoo Finance")
-                    .map_err(err)?;
+                if let Err(e) = etat.db().enregistrer_cotation(&s, c.cours_micro, c.horodatage, c.source) {
+                    erreurs.push(format!("{s} : {e}"));
+                }
             }
             Err(e) => erreurs.push(e),
         }
@@ -395,17 +360,17 @@ pub async fn actualiser_cours(etat: State<'_, Etat>, enveloppe: String) -> Resul
             erreurs.push(e);
         }
     }
-    Ok(Actualisation { portefeuille: portefeuille(&etat, &enveloppe)?, erreurs })
+    Ok(Actualisation { portefeuille: portefeuille(&etat)?, erreurs })
 }
 
-/// Saisie manuelle d'un cours, quand la source automatique ne trouve pas le titre.
+/// Saisie manuelle d'un cours, quand Yahoo Finance ne trouve pas le titre.
 #[tauri::command]
-pub fn saisir_cours(etat: State<'_, Etat>, enveloppe: String, symbole: String, cours_micro: i64) -> Resultat<PortefeuilleDto> {
-    if cours_micro <= 0 {
-        return Err("Le cours doit être positif.".into());
+pub fn saisir_cours(etat: State<'_, Etat>, symbole: String, cours_micro: i64) -> Resultat<PortefeuilleDto> {
+    if cours_micro <= 0 || cours_micro > PRIX_MAX_MICRO {
+        return Err("Le cours doit être compris entre 0 et 1 000 000 €.".into());
     }
-    etat.db.lock().map_err(err)?.enregistrer_cotation(&symbole, cours_micro, maintenant(), "saisie manuelle").map_err(err)?;
-    portefeuille(&etat, &enveloppe)
+    etat.db().enregistrer_cotation(&symbole, cours_micro, maintenant(), "saisie manuelle").map_err(err)?;
+    portefeuille(&etat)
 }
 
 #[derive(Serialize)]
@@ -416,10 +381,7 @@ pub struct RetenueDto {
     pub defaut_micro: i64,
 }
 
-/// Retenues à la source par pays (réglages de l'utilisateur ou valeurs par défaut).
-#[tauri::command]
-pub fn retenues(etat: State<'_, Etat>) -> Resultat<Vec<RetenueDto>> {
-    let db = etat.db.lock().map_err(err)?;
+fn liste_retenues(db: &Store) -> Resultat<Vec<RetenueDto>> {
     div::PAYS_CONNUS
         .iter()
         .map(|(code, nom)| {
@@ -427,27 +389,35 @@ pub fn retenues(etat: State<'_, Etat>) -> Resultat<Vec<RetenueDto>> {
             Ok(RetenueDto {
                 pays: (*code).into(),
                 nom: (*nom).into(),
-                taux_micro: retenue(&db, code)?.map(|r| r.micro()).unwrap_or(defaut),
+                taux_micro: retenue(db, code)?.map(|r| r.micro()).unwrap_or(defaut),
                 defaut_micro: defaut,
             })
         })
         .collect()
 }
 
+/// Retenues à la source par pays (réglages de l'utilisateur ou valeurs par défaut).
+#[tauri::command]
+pub fn retenues(etat: State<'_, Etat>) -> Resultat<Vec<RetenueDto>> {
+    liste_retenues(&etat.db())
+}
+
 /// Modifie la retenue d'un pays ; `taux_micro` absent = retour à la valeur par défaut.
 #[tauri::command]
 pub fn definir_retenue(etat: State<'_, Etat>, pays: String, taux_micro: Option<i64>) -> Resultat<Vec<RetenueDto>> {
+    let pays = pays.trim().to_uppercase();
+    if !div::PAYS_CONNUS.iter().any(|(code, _)| *code == pays) {
+        return Err(format!("pays inconnu : {pays}"));
+    }
     if let Some(t) = taux_micro {
         if !(0..=1_000_000).contains(&t) {
             return Err("La retenue doit être comprise entre 0 et 100 %.".into());
         }
     }
-    {
-        let db = etat.db.lock().map_err(err)?;
-        let valeur = taux_micro.or_else(|| div::retenue_par_defaut(&pays).map(|r| r.micro())).unwrap_or(0);
-        db.definir_parametre(&format!("retenue.{pays}"), &valeur.to_string()).map_err(err)?;
-    }
-    retenues(etat)
+    let db = etat.db();
+    let valeur = taux_micro.or_else(|| div::retenue_par_defaut(&pays).map(|r| r.micro())).unwrap_or(0);
+    db.definir_parametre(&format!("retenue.{pays}"), &valeur.to_string()).map_err(err)?;
+    liste_retenues(&db)
 }
 
 #[derive(Serialize)]
@@ -459,25 +429,22 @@ pub struct TitreDto {
     pub type_: String,
     pub isin: Option<String>,
     pub eligibilite_pea: String,
-    pub devise: String,
 }
 
-/// Recherche d'actions et d'ETF par nom, mnémonique ou ISIN. PEA : cotations en euros ;
-/// CTO : aussi les places américaines, suisse, britannique, nordiques, etc.
+/// Recherche d'actions et d'ETF cotés en euros, par nom, mnémonique ou ISIN.
 #[tauri::command]
-pub async fn chercher_titres(etat: State<'_, Etat>, requete: String, enveloppe: Option<String>) -> Resultat<Vec<TitreDto>> {
-    let q = requete.trim().to_uppercase();
-    if q.len() < 2 {
+pub async fn chercher_titres(etat: State<'_, Etat>, requete: String) -> Resultat<Vec<TitreDto>> {
+    let requete = requete.trim();
+    if requete.chars().count() < 2 {
         return Ok(Vec::new());
     }
+    let q = requete.to_uppercase();
     let isin = est_isin(&q).then(|| q.clone());
-    let monde = enveloppe.as_deref() == Some("CTO");
-    Ok(rechercher_titres(&etat.http, requete.trim(), monde)
+    Ok(rechercher_titres(&etat.http, requete)
         .await?
         .into_iter()
         .map(|t| TitreDto {
             eligibilite_pea: eligibilite_pea(isin.as_deref(), &t.symbole, &t.type_).into(),
-            devise: t.devise,
             symbole: t.symbole,
             nom: t.nom,
             place: t.place,
@@ -549,7 +516,15 @@ fn sens(t: Tendance) -> String {
 /// Les indicateurs sont calculés sur un historique plus long que la période affichée
 /// (la moyenne 200 a besoin de 200 bougies).
 #[tauri::command]
-pub async fn analyse_titre(etat: State<'_, Etat>, symbole: String, periode: String, intervalle: Option<String>) -> Resultat<AnalyseDto> {
+pub async fn analyse_titre(
+    etat: State<'_, Etat>,
+    symbole: String,
+    periode: String,
+    intervalle: Option<String>,
+) -> Resultat<AnalyseDto> {
+    if !symbole_valide(&symbole) {
+        return Err(format!("« {symbole} » n'est pas un symbole de cotation valide."));
+    }
     let hebdo = intervalle.as_deref() == Some("1wk");
     let (telecharge, mut seances) = match periode.as_str() {
         "3mo" => ("2y", 63),
@@ -588,9 +563,7 @@ pub async fn analyse_titre(etat: State<'_, Etat>, symbole: String, periode: Stri
         .collect();
     let t0 = b[debut].t;
     let dividendes = etat
-        .db
-        .lock()
-        .map_err(err)?
+        .db()
         .dividendes(&symbole)
         .map_err(err)?
         .into_iter()
@@ -614,8 +587,11 @@ pub async fn analyse_titre(etat: State<'_, Etat>, symbole: String, periode: Stri
                 type_: if n.type_ == TypeNiveau::Support { "support" } else { "resistance" }.into(),
             })
             .collect(),
-        signaux: a.signaux.into_iter().map(|s| SignalDto { nom: s.nom.into(), sens: sens(s.sens), explication: s.explication }).collect(),
+        signaux: a
+            .signaux
+            .into_iter()
+            .map(|s| SignalDto { nom: s.nom.into(), sens: sens(s.sens), explication: s.explication })
+            .collect(),
         synthese: sens(a.synthese),
     })
 }
-

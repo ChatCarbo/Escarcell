@@ -81,10 +81,8 @@ impl FromStr for Money {
     /// Accepte `1234`, `1234,5`, `1 234,56 €`, `-12.30`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let err = || ParseMoneyError(s.to_string());
-        let clean: String = s
-            .chars()
-            .filter(|c| !c.is_whitespace() && *c != '€' && *c != '\u{202F}' && *c != '\u{A0}')
-            .collect();
+        let clean: String =
+            s.chars().filter(|c| !c.is_whitespace() && *c != '€' && *c != '\u{202F}' && *c != '\u{A0}').collect();
         let (neg, body) = match clean.strip_prefix('-') {
             Some(rest) => (true, rest),
             None => (false, clean.as_str()),

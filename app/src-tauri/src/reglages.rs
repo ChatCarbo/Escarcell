@@ -25,11 +25,23 @@ pub fn sauvegarder(etat: State<'_, Etat>, chemin: String) -> Resultat<()> {
     if chemin == etat.chemin_db {
         return Err("Choisissez un autre fichier que la base d'Escarcelle elle-même.".into());
     }
-    if chemin.exists() {
-        // La boîte de dialogue a déjà demandé confirmation pour remplacer le fichier.
-        std::fs::remove_file(&chemin).map_err(err)?;
+    // On écrit d'abord dans un fichier temporaire, puis on le renomme : si la copie échoue,
+    // une ancienne sauvegarde portant le même nom n'est pas perdue.
+    let mut temporaire = chemin.clone().into_os_string();
+    temporaire.push(".escarcelle-tmp");
+    let temporaire = PathBuf::from(temporaire);
+    if temporaire.exists() {
+        std::fs::remove_file(&temporaire).map_err(err)?;
     }
-    etat.db.lock().map_err(err)?.sauvegarder(&chemin).map_err(err)
+    if let Err(e) = etat.db().sauvegarder(&temporaire) {
+        let _ = std::fs::remove_file(&temporaire);
+        return Err(e.to_string());
+    }
+    // La boîte de dialogue a déjà demandé confirmation pour remplacer un fichier existant.
+    std::fs::rename(&temporaire, &chemin).map_err(|e| {
+        let _ = std::fs::remove_file(&temporaire);
+        e.to_string()
+    })
 }
 
 /// Remplace toutes les données par celles d'une sauvegarde.
@@ -39,7 +51,7 @@ pub fn restaurer(etat: State<'_, Etat>, chemin: String) -> Resultat<()> {
     if !Store::est_sauvegarde(&chemin) {
         return Err("Ce fichier n'est pas une sauvegarde Escarcelle.".into());
     }
-    etat.db.lock().map_err(err)?.restaurer(&chemin).map_err(err)
+    etat.db().restaurer(&chemin).map_err(err)
 }
 
 /// Efface toutes les données ; l'utilisateur doit taper EFFACER.
@@ -48,7 +60,7 @@ pub fn tout_effacer(etat: State<'_, Etat>, confirmation: String) -> Resultat<()>
     if confirmation.trim() != "EFFACER" {
         return Err("Tapez EFFACER en majuscules pour confirmer.".into());
     }
-    etat.db.lock().map_err(err)?.effacer_tout().map_err(err)
+    etat.db().effacer_tout().map_err(err)
 }
 
 /// Enregistre un export (CSV ou image PNG) à l'emplacement choisi par l'utilisateur.

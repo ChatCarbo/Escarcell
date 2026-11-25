@@ -1,7 +1,9 @@
 //! Livrets réglementés : suivi des virements, conseils de dates, répartition entre livrets.
 //! Pas d'établissement : un Livret A, un LDDS et un LEP au plus.
 
-use escarcelle_core::conseil_livret::{conseil_retrait, conseil_versement, repartir_retrait, repartir_versement, LivretDetenu};
+use escarcelle_core::conseil_livret::{
+    conseil_retrait, conseil_versement, repartir_retrait, repartir_versement, LivretDetenu,
+};
 use escarcelle_core::livret::{simuler, Mouvement};
 use escarcelle_core::params::{embarque, LivretParams};
 use escarcelle_core::{Date, Money};
@@ -81,7 +83,7 @@ pub fn valoriser(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money,
 
 pub fn tous(etat: &Etat) -> Resultat<Vec<LivretDto>> {
     let jour = aujourd_hui();
-    let db = etat.db.lock().map_err(err)?;
+    let db = etat.db();
     let comptes = db.comptes().map_err(err)?;
     let mut res = Vec::new();
     for (t, nom) in TYPES {
@@ -108,7 +110,12 @@ pub fn tous(etat: &Etat) -> Resultat<Vec<LivretDto>> {
                 .into_iter()
                 .filter(|o| o.type_ == "VERSEMENT" || o.type_ == "RETRAIT")
                 .rev()
-                .map(|o| OperationDto { id: o.id, date: o.date, type_: o.type_, montant_cents: o.montant_cents.unwrap_or(0) })
+                .map(|o| OperationDto {
+                    id: o.id,
+                    date: o.date,
+                    type_: o.type_,
+                    montant_cents: o.montant_cents.unwrap_or(0),
+                })
                 .collect(),
         });
     }
@@ -124,7 +131,7 @@ pub fn livrets(etat: State<'_, Etat>) -> Resultat<Vec<LivretDto>> {
 pub fn ouvrir_livret(etat: State<'_, Etat>, type_livret: String) -> Resultat<Vec<LivretDto>> {
     let nom = TYPES.iter().find(|(t, _)| *t == type_livret).map(|(_, n)| *n).ok_or("type de livret inconnu")?;
     {
-        let db = etat.db.lock().map_err(err)?;
+        let db = etat.db();
         if !db.comptes().map_err(err)?.iter().any(|c| c.type_ == type_livret) {
             db.ajouter_compte(&Compte {
                 id: 0,
@@ -191,6 +198,9 @@ pub struct RepartitionDto {
 /// Où verser (meilleur taux d'abord, dans la limite des plafonds) ou où retirer (taux le plus bas d'abord).
 #[tauri::command]
 pub fn repartir_livrets(etat: State<'_, Etat>, sens: String, montant_cents: i64) -> Resultat<RepartitionDto> {
+    if montant_cents <= 0 {
+        return Ok(RepartitionDto { parts: Vec::new(), reste_cents: 0 });
+    }
     let detenus: Vec<(String, LivretDetenu)> = tous(&etat)?
         .into_iter()
         .filter(|l| l.compte_id.is_some())
@@ -208,9 +218,15 @@ pub fn repartir_livrets(etat: State<'_, Etat>, sens: String, montant_cents: i64)
         .collect();
     let liste: Vec<LivretDetenu> = detenus.iter().map(|(_, l)| l.clone()).collect();
     let montant = Money::from_cents(montant_cents);
-    let (parts, reste) = if sens == "RETRAIT" { repartir_retrait(&liste, montant) } else { repartir_versement(&liste, montant) };
+    let (parts, reste) =
+        if sens == "RETRAIT" { repartir_retrait(&liste, montant) } else { repartir_versement(&liste, montant) };
     Ok(RepartitionDto {
-        parts: detenus.into_iter().zip(parts).filter(|(_, m)| *m > Money::ZERO).map(|((n, _), m)| (n, m.cents())).collect(),
+        parts: detenus
+            .into_iter()
+            .zip(parts)
+            .filter(|(_, m)| *m > Money::ZERO)
+            .map(|((n, _), m)| (n, m.cents()))
+            .collect(),
         reste_cents: reste.cents(),
     })
 }

@@ -1,10 +1,10 @@
 <script>
-  import { api, symboleDevise } from './api.js';
+  import { api } from './api.js';
   import { exporterImage, nomFichier } from './export.js';
 
-  /** pru : prix de revient (en millionièmes, dans la devise de cotation) pour tracer la ligne d'achat, facultatif */
-  let { symbole, nom, pru = null, devise = 'EUR' } = $props();
-  const monnaie = $derived(symboleDevise(devise));
+  /** pru : prix de revient en millionièmes d'euro, pour tracer la ligne d'achat (facultatif) */
+  let { symbole, nom, pru = null } = $props();
+  const monnaie = '€';
   let racine = $state(null);
   let messageExport = $state('');
 
@@ -36,14 +36,18 @@
   let couches = $state({ moyennes: true, bollinger: false, niveaux: true });
   let survol = $state(null);
 
+  // Chaque changement de titre, de période ou d'intervalle lance une requête ; seule la dernière est affichée
+  // (une réponse lente d'une demande précédente ne doit pas remplacer la courbe demandée ensuite).
+  let numeroDemande = 0;
   $effect(() => {
     const s = symbole, p = periode, iv = intervalle;
+    const numero = ++numeroDemande;
     chargement = true;
     erreur = '';
     api.analyseTitre(s, p, iv)
-      .then((r) => (a = r))
-      .catch((e) => { erreur = String(e); a = null; })
-      .finally(() => (chargement = false));
+      .then((r) => { if (numero === numeroDemande) a = r; })
+      .catch((e) => { if (numero === numeroDemande) { erreur = String(e); a = null; } })
+      .finally(() => { if (numero === numeroDemande) chargement = false; });
   });
 
   const W = 860, H = 280, D = 64; // largeur, hauteur du graphique de cours, marge droite (axe)

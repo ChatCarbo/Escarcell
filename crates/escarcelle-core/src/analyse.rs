@@ -56,7 +56,11 @@ pub fn rsi(v: &[f64], n: usize) -> Vec<Option<f64>> {
     let (mut hausse, mut baisse) = (0.0, 0.0);
     for i in 1..=n {
         let d = v[i] - v[i - 1];
-        if d > 0.0 { hausse += d } else { baisse -= d }
+        if d > 0.0 {
+            hausse += d
+        } else {
+            baisse -= d
+        }
     }
     hausse /= n as f64;
     baisse /= n as f64;
@@ -227,7 +231,18 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
     let mut s = Vec::new();
     let n = c.len();
     if n < 30 {
-        return Analyse { sma20, sma50, sma200, bollinger: bol, rsi: r, macd: m, niveaux: niv, signaux: s, synthese: Tendance::Neutre, structure: Tendance::Neutre };
+        return Analyse {
+            sma20,
+            sma50,
+            sma200,
+            bollinger: bol,
+            rsi: r,
+            macd: m,
+            niveaux: niv,
+            signaux: s,
+            synthese: Tendance::Neutre,
+            structure: Tendance::Neutre,
+        };
     }
     let dernier = c[n - 1];
 
@@ -236,7 +251,15 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
         if dernier > m200 && m50 > m200 {
             s.push(Signal { nom: "Tendance de fond", sens: Tendance::Haussier, explication: format!("Le cours ({}) est au-dessus de sa moyenne 200 jours ({}) et la moyenne 50 jours est au-dessus de la 200 jours.", prix(dernier), prix(m200)) });
         } else if dernier < m200 && m50 < m200 {
-            s.push(Signal { nom: "Tendance de fond", sens: Tendance::Baissier, explication: format!("Le cours ({}) est sous sa moyenne 200 jours ({}) et la moyenne 50 jours est sous la 200 jours.", prix(dernier), prix(m200)) });
+            s.push(Signal {
+                nom: "Tendance de fond",
+                sens: Tendance::Baissier,
+                explication: format!(
+                    "Le cours ({}) est sous sa moyenne 200 jours ({}) et la moyenne 50 jours est sous la 200 jours.",
+                    prix(dernier),
+                    prix(m200)
+                ),
+            });
         }
         // Croisement des moyennes 50 / 200 sur les 10 dernières séances.
         for i in n.saturating_sub(10).max(1)..n {
@@ -244,7 +267,13 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
                 if a0 <= b0 && a1 > b1 {
                     s.push(Signal { nom: "Croisement doré", sens: Tendance::Haussier, explication: "La moyenne 50 jours vient de passer au-dessus de la moyenne 200 jours, signal haussier classique.".into() });
                 } else if a0 >= b0 && a1 < b1 {
-                    s.push(Signal { nom: "Croisement de la mort", sens: Tendance::Baissier, explication: "La moyenne 50 jours vient de passer sous la moyenne 200 jours, signal baissier classique.".into() });
+                    s.push(Signal {
+                        nom: "Croisement de la mort",
+                        sens: Tendance::Baissier,
+                        explication:
+                            "La moyenne 50 jours vient de passer sous la moyenne 200 jours, signal baissier classique."
+                                .into(),
+                    });
                 }
             }
         }
@@ -253,9 +282,21 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
     // RSI.
     if let Some(v) = r[n - 1] {
         if v >= 70.0 {
-            s.push(Signal { nom: "RSI en surachat", sens: Tendance::Baissier, explication: format!("RSI à {v:.0} : le titre a beaucoup monté récemment, un repli ou une pause est fréquent.") });
+            s.push(Signal {
+                nom: "RSI en surachat",
+                sens: Tendance::Baissier,
+                explication: format!(
+                    "RSI à {v:.0} : le titre a beaucoup monté récemment, un repli ou une pause est fréquent."
+                ),
+            });
         } else if v <= 30.0 {
-            s.push(Signal { nom: "RSI en survente", sens: Tendance::Haussier, explication: format!("RSI à {v:.0} : le titre a beaucoup baissé récemment, un rebond technique est fréquent.") });
+            s.push(Signal {
+                nom: "RSI en survente",
+                sens: Tendance::Haussier,
+                explication: format!(
+                    "RSI à {v:.0} : le titre a beaucoup baissé récemment, un rebond technique est fréquent."
+                ),
+            });
         }
     }
 
@@ -266,7 +307,8 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
         } else if dernier > bd.haut {
             s.push(Signal { nom: "Au-dessus de la bande de Bollinger", sens: Tendance::Baissier, explication: "Le cours est passé au-dessus de la bande haute : excès de hausse, retour possible vers la moyenne 20 jours.".into() });
         }
-        let largeurs: Vec<f64> = bol[n.saturating_sub(120)..].iter().flatten().map(|x| (x.haut - x.bas) / x.milieu).collect();
+        let largeurs: Vec<f64> =
+            bol[n.saturating_sub(120)..].iter().flatten().map(|x| (x.haut - x.bas) / x.milieu).collect();
         let actuelle = (bd.haut - bd.bas) / bd.milieu;
         if largeurs.len() >= 60 && largeurs.iter().all(|l| *l >= actuelle) {
             s.push(Signal { nom: "Compression des bandes", sens: Tendance::Neutre, explication: "Les bandes de Bollinger n'ont jamais été aussi resserrées depuis six mois : un mouvement marqué est probable, sans indication de sens.".into() });
@@ -277,9 +319,19 @@ pub fn analyser(b: &[Bougie]) -> Analyse {
     for i in n.saturating_sub(5).max(1)..n {
         if let (Some(a), Some(z)) = (m[i - 1], m[i]) {
             if a.histogramme <= 0.0 && z.histogramme > 0.0 {
-                s.push(Signal { nom: "MACD haussier", sens: Tendance::Haussier, explication: "Le MACD vient de croiser sa ligne de signal à la hausse : l'élan redevient positif.".into() });
+                s.push(Signal {
+                    nom: "MACD haussier",
+                    sens: Tendance::Haussier,
+                    explication: "Le MACD vient de croiser sa ligne de signal à la hausse : l'élan redevient positif."
+                        .into(),
+                });
             } else if a.histogramme >= 0.0 && z.histogramme < 0.0 {
-                s.push(Signal { nom: "MACD baissier", sens: Tendance::Baissier, explication: "Le MACD vient de croiser sa ligne de signal à la baisse : l'élan devient négatif.".into() });
+                s.push(Signal {
+                    nom: "MACD baissier",
+                    sens: Tendance::Baissier,
+                    explication: "Le MACD vient de croiser sa ligne de signal à la baisse : l'élan devient négatif."
+                        .into(),
+                });
             }
         }
     }
@@ -367,7 +419,14 @@ mod tests {
     fn serie(c: &[f64]) -> Vec<Bougie> {
         c.iter()
             .enumerate()
-            .map(|(i, &x)| Bougie { t: i as i64 * 86_400, ouverture: x, haut: x * 1.01, bas: x * 0.99, cloture: x, volume: 1_000.0 })
+            .map(|(i, &x)| Bougie {
+                t: i as i64 * 86_400,
+                ouverture: x,
+                haut: x * 1.01,
+                bas: x * 0.99,
+                cloture: x,
+                volume: 1_000.0,
+            })
             .collect()
     }
 
@@ -415,7 +474,8 @@ mod tests {
     #[test]
     fn cassure_de_resistance_detectee() {
         // Range 90–110 pendant 120 séances, puis sortie franche à 118 avec volumes doublés.
-        let mut c: Vec<f64> = (0..120).map(|i| 100.0 + 10.0 * ((i as f64) * std::f64::consts::PI / 10.0).sin()).collect();
+        let mut c: Vec<f64> =
+            (0..120).map(|i| 100.0 + 10.0 * ((i as f64) * std::f64::consts::PI / 10.0).sin()).collect();
         let base = c.len();
         c.extend([104.0, 108.0, 112.0, 116.0, 118.0]);
         let mut b = serie(&c);

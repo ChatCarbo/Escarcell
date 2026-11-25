@@ -1,6 +1,6 @@
 # Escarcelle — Spécification
 
-> Version du document : 8 — 24/11/2026 — Escarcelle 0.2.0
+> Version du document : 12 — 25/11/2026 — version 0.3
 > Auteur : ChatCarbo — Licence GPL-3.0-or-later
 > Ce document décrit la **V1** telle qu'elle est développée, puis ce qui est prévu ensuite.
 
@@ -29,12 +29,13 @@ Mention affichée en permanence : *« Simulations à titre informatif. Ne rempla
 | **Tableau de bord** | Patrimoine suivi, total des livrets, intérêts estimés de l'année, plus-value latente du PEA, camembert par enveloppe, liste des comptes, alertes |
 | **Livrets** | Livret A, LDDS, LEP : virements, solde, plafond, intérêts, conseils de dates, répartition entre livrets |
 | **PEA** | Lignes (titre, quantité, PRU), recherche de titres, cours automatiques, plus ou moins-values, dividendes nets, assemblées générales, courbe et analyse technique |
-| **CTO** | Mêmes fonctions que le PEA, pour des titres cotés en euros ou en devises (dollar, franc suisse, livre…), avec la fiscalité du compte-titres : plus-value après flat tax, dividendes après retenue, flat tax et crédit d'impôt |
 | **Paramètres** (bouton en haut à droite de la fenêtre) | Sauvegarder, restaurer, tout effacer, retenues à la source par pays, vérification des nouvelles versions |
 
-**Exports** : chaque écran de chiffres s'exporte en **CSV** (tableau de bord, historique des livrets, lignes du PEA et du CTO) ; les graphiques s'exportent en **image PNG** (courbe d'un titre avec ses indicateurs, répartition du tableau de bord). Le numéro de version est affiché sous le menu.
+**Compte-titres et PEA-PME** : retirés en 0.3 pour stabiliser l'application. Leur code (titres en devises, flat tax, crédit d'impôt conventionnel, liste Euronext du PEA-PME) a été supprimé et reste consultable dans l'historique git (étiquette `v0.2.0`). À l'ouverture d'une base de la 0.2, les lignes de ces enveloppes sont supprimées (§8.3).
 
-**Hors V1** (code partiellement écrit, voir §9) : impôt et dons, PER, assurance-vie, import de relevés, comptes courants, livrets non réglementés.
+**Exports** : chaque écran de chiffres s'exporte en **CSV** (tableau de bord, historique des livrets, lignes du PEA) ; les graphiques s'exportent en **image PNG** (courbe d'un titre avec ses indicateurs, répartition du tableau de bord). Le numéro de version est affiché sous le menu.
+
+**Hors V1** (voir §9) : impôt et dons, PER, assurance-vie, import de relevés, comptes courants, livrets non réglementés. Aucun code n'est conservé pour ces fonctions : le code écrit pour l'impôt, les dons et le PER a été retiré en préparant la 0.3 et reste consultable dans l'historique git (étiquette `v0.2.0`).
 
 ---
 
@@ -42,13 +43,13 @@ Mention affichée en permanence : *« Simulations à titre informatif. Ne rempla
 
 | Indicateur | Calcul |
 | :--- | :--- |
-| Patrimoine suivi | Somme des soldes des livrets + valeur du PEA + valeur du CTO |
+| Patrimoine suivi | Somme des soldes des livrets + valeur du PEA |
 | Livrets réglementés | Somme des soldes des livrets |
 | Intérêts estimés cette année | Intérêts calculés par quinzaines jusqu'au 31 décembre, en supposant qu'aucun autre virement n'aura lieu |
-| Plus-value latente | Valeur des lignes − (quantité × PRU), PEA et CTO additionnés, avant impôt |
-| Dividendes nets par an | Somme des dividendes annuels nets du PEA et du CTO (§5.6) |
+| Plus-value latente | Valeur des lignes du PEA − (quantité × PRU) |
+| Dividendes nets par an | Somme des dividendes annuels nets du PEA (§5.6) |
 
-Camembert par enveloppe (Livret A, LDDS, LEP, PEA, CTO), couleurs fixes. Bloc **« À venir (45 jours) »** : détachements de dividendes estimés et assemblées générales (§6).
+Camembert par enveloppe (Livret A, LDDS, LEP, PEA), couleurs fixes. Bloc **« À venir (45 jours) »** : détachements de dividendes estimés et assemblées générales (§6).
 
 ---
 
@@ -61,7 +62,7 @@ Camembert par enveloppe (Livret A, LDDS, LEP, PEA, CTO), couleurs fixes. Bloc **
 | Livrets gérés | Un Livret A, un LDDS et un LEP au plus (un par personne) |
 | Plafonds de versement | Livret A 22 950 € · LDDS 12 000 € · LEP 10 000 € |
 | Plafond | Un versement est refusé si `solde + versement > plafond`. Seuls les intérêts capitalisés peuvent faire dépasser le plafond. |
-| Taux | Fixés par l'État, révisables au 1er février et au 1er août. Au 01/08/2026 : Livret A et LDDS 1,70 %, LEP 2,50 %. |
+| Taux | Fixés par l'État, révisables au 1er février et au 1er août. Au 01/08/2026 : Livret A et LDDS 1,70 %, LEP 2,50 %. Historique embarqué depuis le 01/02/2020 (§8.2). |
 | Fiscalité | Intérêts exonérés d'impôt et de prélèvements sociaux |
 | Quinzaines | L'année compte 24 quinzaines : du 1er au 15 et du 16 à la fin du mois. |
 | Versement | Rapporte à partir du **1er jour de la quinzaine suivante** |
@@ -73,7 +74,7 @@ Calcul : `intérêts(quinzaine) = max(0, solde rémunéré) × taux annuel / 24`
 
 ### 4.2 Saisie
 
-L'utilisateur indique qu'il possède un livret (« J'ai un Livret A »), puis saisit ses virements : sens (versement ou retrait), livret, date de valeur, montant. Contrôles : plafond pour un versement, solde pour un retrait. Historique par livret avec suppression en deux clics.
+L'utilisateur indique qu'il possède un livret (« J'ai un Livret A »), puis saisit ses virements : sens (versement ou retrait), livret, date de valeur, montant. Contrôles : montant positif, plafond pour un versement, solde pour un retrait, date entre le 01/02/2020 (début de l'historique des taux) et un an après aujourd'hui. Pour un livret plus ancien, on saisit son solde au 01/02/2020 comme premier versement. Historique par livret avec suppression en deux clics.
 
 ### 4.3 Conseils de dates
 
@@ -105,19 +106,20 @@ Rappel affiché : les dates sont des **dates de valeur** ; un virement fait un v
 
 ---
 
-## 5. PEA et CTO
+## 5. PEA
 
 ### 5.1 Principe
 
-Les deux enveloppes ont le même écran. L'utilisateur saisit ce qu'il détient : **titre, quantité, PRU** (le prix de revient affiché par sa banque, frais de courtage et de change inclus). Escarcelle récupère les cours et les dividendes, puis calcule les gains selon la fiscalité de l'enveloppe. Il n'y a ni établissement ni journal d'opérations.
+L'utilisateur saisit ce qu'il détient : **titre, quantité, PRU** (le prix de revient affiché par sa banque, frais de courtage inclus). Escarcelle récupère les cours et les dividendes, puis calcule les gains. Il n'y a ni établissement ni journal d'opérations.
 
-| | PEA | CTO |
-| :--- | :--- | :--- |
-| Titres | Sociétés de l'Union européenne et de l'EEE, cotées en euros | Tous : places de la zone euro, États-Unis, Zurich, Londres, Stockholm, Copenhague, Oslo, Toronto, Tokyo, Hong Kong, Sydney |
-| Plus-value | Pas d'impôt tant que l'argent reste dans le plan | Flat tax de 31,4 % (12,8 % d'impôt + 18,6 % de prélèvements sociaux) à la vente |
-| Dividendes français | Encaissés sans impôt | Flat tax de 31,4 % |
-| Dividendes étrangers | Retenue à la source du pays, **perdue** (aucun impôt français sur lequel l'imputer) | Retenue du pays, puis flat tax, diminuée d'un crédit d'impôt limité à 12,8 % |
-| Plafond | 150 000 € de versements | Aucun |
+| Règle | Détail |
+| :--- | :--- |
+| Titres | Sociétés de l'Union européenne et de l'EEE, cotées en euros ; un titre coté dans une autre devise est refusé |
+| Plus-value | Pas d'impôt tant que l'argent reste dans le plan |
+| Dividendes français | Encaissés sans impôt |
+| Dividendes étrangers | Retenue à la source du pays, **perdue** (aucun impôt français sur lequel l'imputer) |
+| Plafond | 150 000 € de versements (non contrôlé : Escarcelle suit des lignes, pas les versements) |
+| Saisie | Quantité positive (un milliard de titres au plus), PRU entre 0 et 1 000 000 € |
 
 ### 5.2 Recherche de titres
 
@@ -133,17 +135,7 @@ Recherche par nom, mnémonique ou ISIN, résultats au fil de la frappe (après 3
 
 L'éligibilité est **indicative** (affichée seulement sur l'écran PEA) ; l'utilisateur la vérifie auprès de sa banque.
 
-**CTO : titres en devises.** La recherche du CTO ajoute les places hors zone euro ; la devise est indiquée dans les résultats. Exemple : NVIDIA apparaît coté à New York (NVDA, en dollars) et non plus seulement à Francfort en euros. Un titre coté en devise est refusé dans le PEA, avec un message invitant à l'ajouter au CTO.
-
-| Règle | Détail |
-| :--- | :--- |
-| PRU | Toujours saisi **en euros**, change et frais compris, tel qu'affiché par la banque : c'est le prix de revient retenu par l'impôt français |
-| Cours | Conservé dans la devise de cotation ; la Bourse de Londres, qui cote en pence, est convertie en livres |
-| Taux de change | Unités de devise pour 1 euro (symbole Yahoo `EURUSD=X`, etc.), mis à jour avec les cours |
-| Valeur en euros | quantité × cours ÷ taux de change |
-| Dividendes | Montants dans la devise du titre, convertis en euros au taux du jour |
-| Graphique | En devise ; la ligne « Mon PRU » est convertie dans la devise au taux du jour |
-| Taux manquant | Valeur au PRU et mention « taux de change manquant » |
+Symbole de cotation : lettres, chiffres, point, tiret, `^`, `=` ou `_`, 20 caractères au plus ; tout autre symbole est refusé avant d'interroger Yahoo Finance.
 
 ### 5.3 Valorisation
 
@@ -152,8 +144,6 @@ L'éligibilité est **indicative** (affichée seulement sur l'écran PEA) ; l'ut
 | Investi | quantité × PRU |
 | Valeur | quantité × dernier cours (ou × PRU si aucun cours n'est connu) |
 | Plus ou moins-value | valeur − investi, en euros et en % |
-| Impôt sur la plus-value (CTO) | 31,4 % de la plus-value si elle est positive, 0 sinon |
-| Plus-value après flat tax (CTO) | plus-value − impôt : ce que l'utilisateur garderait en vendant tout aujourd'hui |
 | Variation sur 1 an | dernier cours / cours mensuel d'il y a 12 mois − 1 |
 
 Totaux en haut de page, camembert de répartition des lignes. Modification de la quantité, du PRU et du pays de la société, suppression en deux clics.
@@ -161,12 +151,14 @@ Totaux en haut de page, camembert de répartition des lignes. Modification de la
 ### 5.4 Cours
 
 - **Source V1 : Yahoo Finance**, sans clé, depuis la machine de l'utilisateur, pour son seul affichage (aucune rediffusion).
-- Mise à jour à l'ouverture de la page PEA ou CTO, puis toutes les 5 minutes tant qu'elle est ouverte, ou à la demande (« Actualiser les cours »).
+- Yahoo Finance fournit aussi l'historique et les dividendes. Il n'y a pas de source de secours.
+- Un cours absent, nul, négatif ou non numérique est ignoré. Un cours sans heure de cotation est daté du moment de la récupération.
+- Mise à jour à l'ouverture de la page PEA, puis toutes les 5 minutes tant qu'elle est ouverte, ou à la demande (« Actualiser les cours »).
 - Les dividendes et le cours d'il y a un an sont récupérés en même temps, au plus une fois par jour et par titre (une requête mensuelle sur 10 ans).
 - Cours en général **différés d'environ 15 minutes**. L'heure du cours est toujours affichée.
 - Seules les cotations en euros sont acceptées.
 - Si un titre n'est pas trouvé : saisie manuelle du cours.
-- Le module `escarcelle-quotes` prévoit une chaîne de sources avec bascule automatique ; Boursorama et Euronext seront ajoutées devant Yahoo.
+- Si Yahoo ne répond pas, le dernier cours enregistré reste affiché, et la saisie manuelle reste possible.
 
 ### 5.5 Dividendes
 
@@ -197,21 +189,20 @@ Retenues proposées par défaut (taux appliqués à un résident français, au 1
 | Espagne | 19 % | Portugal | 25 % |
 | Finlande | 20 % | Tchéquie | 15 % |
 | Irlande | 25 % | Suède | 30 % |
-| États-Unis (W-8BEN) | 15 % | Suisse | 35 % |
-| Royaume-Uni | 0 % | Canada | 25 % |
-| Japon | 15,315 % | Australie (non « franked ») | 30 % |
-| Hong Kong | 0 % | | |
+| Grèce | 5 % | | |
 
 Pays inconnu : retenue comptée à 0 et signalée sur la fiche de la ligne.
 
-| Enveloppe | Dividende net |
-| :--- | :--- |
-| PEA | brut − retenue |
-| CTO | brut − retenue − (12,8 % × brut − crédit d'impôt) − 18,6 % × brut, avec crédit d'impôt = min(retenue, 12,8 %) × brut |
+**Dividende net** : net = brut − retenue. Aucun impôt français tant que l'argent reste dans le plan ; la retenue n'est pas restituée (BOFiP BOI-RPPM-RCM-40-50-30 : les crédits d'impôt conventionnels ne sont restitués que si les revenus sont imposables, ce qui n'est pas le cas dans un PEA). Vérifié par `tests/fiscalite.rs`.
 
-Exemples pour 100 € bruts : PEA France 100 € ; PEA Allemagne 73,62 € ; CTO France 68,60 € ; CTO Pays-Bas 66,40 € ; CTO Allemagne 55,02 €. L'excédent de retenue au-delà du taux de la convention fiscale (15 % en général) peut être réclamé au fisc étranger ; Escarcelle le compte comme perdu.
+| Société | Retenue | Net pour 100 € bruts |
+| :--- | ---: | ---: |
+| Française | 0 % | 100,00 € |
+| Néerlandaise | 15 % | 85,00 € |
+| Allemande | 26,375 % | 73,62 € |
+| Belge | 30 % | 70,00 € |
 
-**Fiche de la ligne** (en cliquant sur son nom) : dividende annuel par action, fréquence, rendement, croissance, prochain détachement estimé, décomposition brut → retenue → impôt → prélèvements sociaux → net, assemblées générales, puis la courbe.
+**Fiche de la ligne** (en cliquant sur son nom) : dividende annuel par action, fréquence, rendement, croissance, prochain détachement estimé, décomposition brut → retenue → net, assemblées générales, puis la courbe.
 
 ### 5.7 Courbe et analyse technique
 
@@ -265,14 +256,23 @@ Affichées sur le tableau de bord, pour les 45 prochains jours, triées par date
 
 | Alerte | Origine |
 | :--- | :--- |
-| Détachement de dividende | Date estimée (§5.5), pour chaque ligne du PEA et du CTO |
+| Détachement de dividende | Date estimée (§5.5), pour chaque ligne du PEA |
 | Assemblée générale | Date saisie par l'utilisateur sur la fiche de la ligne (avec une note facultative) |
 
 Source conseillée pour les dates d'AG des sociétés françaises : l'avis de réunion publié au **BALO** (Bulletin des annonces légales obligatoires, journal-officiel.gouv.fr) et l'espace « Actionnaires » du site de la société. La récupération automatique depuis les données ouvertes du BALO est prévue (§9).
 
 ### 6.2 Nouvelles versions
 
-Au démarrage (réglage activé par défaut), Escarcelle demande à GitHub la liste des versions publiées du dépôt (`repository` de `app/src-tauri/Cargo.toml`) et compare la plus récente, préversions comprises, à la version installée. Si elle est plus récente, un bandeau propose d'ouvrir la page de la version. Rien n'est envoyé, téléchargé ni installé automatiquement. Bouton « Vérifier maintenant » dans Paramètres.
+Si l'utilisateur l'active dans Paramètres (**désactivé par défaut**, pour qu'Escarcelle ne contacte aucun serveur sans son accord), Escarcelle demande au démarrage à GitHub la liste des versions publiées du dépôt (`repository` de `app/src-tauri/Cargo.toml`) et compare la plus récente, préversions comprises, à la version installée. Si elle est plus récente, un bandeau propose d'ouvrir la page de la version. Aucune donnée d'Escarcelle n'est envoyée (GitHub voit seulement l'adresse IP, comme pour toute page web) ; rien n'est téléchargé ni installé automatiquement. Bouton « Vérifier maintenant » dans Paramètres.
+
+### 6.3 Connexions réseau
+
+| Service | Déclencheur | Contenu de la requête |
+| :--- | :--- | :--- |
+| Yahoo Finance | Page PEA : recherche, cours, dividendes, courbes | Texte recherché, ISIN ou symbole du titre ; jamais de quantité, de PRU ni de montant |
+| GitHub (api.github.com) | Vérification des versions, si activée, ou bouton « Vérifier maintenant » | Liste des versions publiées |
+
+Aucune autre connexion. Escarcelle communique donc avec l'extérieur pour lire des données publiques, mais **ne transmet aucune donnée de l'utilisateur**. Les pages Livrets et Tableau de bord fonctionnent hors ligne (le tableau de bord utilise les derniers cours enregistrés).
 
 ---
 
@@ -280,7 +280,7 @@ Au démarrage (réglage activé par défaut), Escarcelle demande à GitHub la li
 
 | Action | Fonctionnement |
 | :--- | :--- |
-| Sauvegarder | Copie cohérente de toute la base dans un fichier choisi par l'utilisateur (`escarcelle-AAAA-MM-JJ.db`) |
+| Sauvegarder | Copie cohérente de toute la base dans un fichier choisi par l'utilisateur (`escarcelle-AAAA-MM-JJ.db`) ; la copie est écrite dans un fichier temporaire puis renommée, pour qu'un échec ne détruise pas une ancienne sauvegarde du même nom |
 | Restaurer | Vérifie que le fichier est une sauvegarde Escarcelle, demande confirmation, remplace les données, met le schéma à jour si la sauvegarde est ancienne |
 | Tout effacer | Supprime toutes les données après saisie du mot EFFACER ; le schéma est conservé |
 | Retenues à la source | Tableau des pays : taux en vigueur, taux par défaut, modification et retour à la valeur par défaut |
@@ -293,7 +293,7 @@ Au démarrage (réglage activé par défaut), Escarcelle demande à GitHub la li
 | Tableau de bord, CSV | Comptes, type, valeur, intérêts estimés ou plus-value latente, total |
 | Tableau de bord, image | Camembert de répartition, avec titre, date et montants |
 | Livrets, CSV | Historique de tous les virements (livret, date de valeur, opération, montant signé) |
-| PEA / CTO, CSV | Une ligne par titre : identifiants, pays, devise, quantité, PRU, cours en devise et en euros, valeur, plus-value, (CTO : impôt et plus-value nette), variation sur 1 an, dividende, rendement, retenue, dividende net, prochain détachement ; ligne de total |
+| PEA, CSV | Une ligne par titre : identifiants, pays, quantité, PRU, cours, valeur, investi, plus-value, variation sur 1 an, dividende par action, rendement, dividende brut, retenue, dividende net, prochain détachement ; ligne de total |
 | Courbe d'un titre, image | Cours, volumes, RSI et MACD tels qu'affichés, avec titre et mention de la source |
 
 Format CSV : séparateur « ; », virgule décimale, UTF-8 avec BOM, pour une ouverture directe dans Excel ou LibreOffice en français. Images PNG en double résolution, aux couleurs du thème. L'emplacement est choisi par l'utilisateur ; seules les extensions `.csv` et `.png` sont acceptées par la commande d'enregistrement.
@@ -319,24 +319,23 @@ Les conversions depuis la saisie (« 1 234,56 ») se font une seule fois, à l'e
 
 | Paramètre | Valeurs (date d'effet) |
 | :--- | :--- |
-| Livret A et LDDS | 1,70 % (01/08/2025) · 1,50 % (01/02/2026) · 1,70 % (01/08/2026) |
-| LEP | 2,70 % (01/08/2025) · 2,50 % (01/02/2026) |
+| Livret A et LDDS | 0,50 % (01/02/2020) · 1,00 % (01/02/2022) · 2,00 % (01/08/2022) · 3,00 % (01/02/2023) · 2,40 % (01/02/2025) · 1,70 % (01/08/2025) · 1,50 % (01/02/2026) · 1,70 % (01/08/2026) |
+| LEP | 1,00 % (01/02/2020) · 2,20 % (01/02/2022) · 4,60 % (01/08/2022) · 6,10 % (01/02/2023) · 6,00 % (01/08/2023) · 5,00 % (01/02/2024) · 4,00 % (01/08/2024) · 3,50 % (01/02/2025) · 2,70 % (01/08/2025) · 2,50 % (01/02/2026) |
 | Plafonds | 22 950 € · 12 000 € · 10 000 € |
-| Flat tax 2026 | 12,8 % d'impôt + 18,6 % de prélèvements sociaux = 31,4 % |
 | Retenues à la source | Tableau du §5.6 |
 
-À mettre à jour à chaque révision des taux (1er février, 1er août) dans `crates/escarcelle-core/src/params.rs` ; la fiscalité des dividendes est dans `dividendes.rs`. La mise à jour par fichier signé est prévue (§9).
+À mettre à jour à chaque révision des taux (1er février, 1er août) dans `crates/escarcelle-core/src/params.rs` ; les retenues à la source sont dans `dividendes.rs`. La mise à jour par fichier signé est prévue (§9).
 
 ### 8.3 Stockage
 
-Un seul fichier SQLite, schéma versionné et migré automatiquement à l'ouverture.
+Un seul fichier SQLite, schéma versionné et migré automatiquement à l'ouverture (et après une restauration). La migration 6 (version 0.3) supprime les lignes du compte-titres et du PEA-PME, la table `pea_pme`, les taux de change, les retenues des pays hors PEA, ainsi que les dividendes, informations et événements des titres qui ne sont plus détenus.
 
 | Table | Contenu |
 | :--- | :--- |
 | `comptes` | Livrets détenus (type, date d'ouverture) |
 | `operations` | Virements des livrets (date, sens, montant en centimes) |
-| `positions` | Lignes du PEA et du CTO (enveloppe, ISIN, symbole de cotation, nom, quantité, PRU en euros, pays, devise de cotation) |
-| `cours` | Dernier cours par titre et par jour (cours en devise, heure, source) ; les taux de change y sont rangés sous leur symbole (`EURUSD=X`) |
+| `positions` | Lignes du PEA (ISIN, symbole de cotation, nom, quantité, PRU, pays) ; les colonnes `enveloppe` (« PEA ») et `devise` (« EUR ») restent pour la compatibilité des sauvegardes |
+| `cours` | Dernier cours par titre et par jour (cours, heure, source) |
 | `dividendes` | Détachements par titre (date, montant par action) |
 | `infos_titres` | Cours d'il y a un an et date de la dernière récupération des dividendes |
 | `evenements` | Assemblées générales et autres événements saisis (titre, date, note) |
@@ -346,24 +345,31 @@ Un seul fichier SQLite, schéma versionné et migré automatiquement à l'ouvert
 
 ```
 crates/escarcelle-core     Calculs, sans dépendance ni accès réseau :
-                        livret, conseil_livret, analyse, chandeliers, dividendes,
-                        pea, courtage, impot, per, dons, comparateur, strategie, params
-crates/escarcelle-quotes   Chaîne de sources de cours (bascule, pause, cohérence, fraîcheur)
+                        date, money, price, rate, params, livret, conseil_livret,
+                        analyse, chandeliers, dividendes, identifiants
 app/src-tauri           Application Tauri v2 : stockage SQLite, cours et dividendes Yahoo,
-                        portefeuilles PEA/CTO, alertes, vérification des versions
+                        PEA, alertes, vérification des versions
 app/src                 Interface Svelte 5
-catalogue/              Frais et conditions des établissements (pour les versions suivantes)
 docs/                   Spécification, guide d'utilisation, compilation
+.github/                Intégration continue, modèle d'issue
 ```
 
-Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `conseil_livret`, `repartir_livrets`, `ajouter_operation`, `supprimer_operation`, `positions`, `chercher_titres`, `ajouter_position`, `modifier_position`, `supprimer_position`, `actualiser_cours`, `saisir_cours`, `analyse_titre`, `retenues`, `definir_retenue`, `alertes`, `evenements`, `ajouter_evenement`, `supprimer_evenement`, `verifier_mise_a_jour`, `verification_auto`, `emplacement_donnees`, `sauvegarder`, `restaurer`, `tout_effacer`, `enregistrer_export`. Les commandes de portefeuille prennent l'enveloppe (`PEA` ou `CTO`) en argument.
+Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `conseil_livret`, `repartir_livrets`, `ajouter_operation`, `supprimer_operation`, `positions`, `chercher_titres`, `ajouter_position`, `modifier_position`, `supprimer_position`, `actualiser_cours`, `saisir_cours`, `analyse_titre`, `retenues`, `definir_retenue`, `evenements`, `ajouter_evenement`, `supprimer_evenement`, `verifier_mise_a_jour`, `verification_auto`, `emplacement_donnees`, `sauvegarder`, `restaurer`, `tout_effacer`, `enregistrer_export`.
 
-### 8.5 Qualité
+### 8.5 Qualité et stabilité
 
-- `cargo test` à la racine : 94 tests du cœur de calcul (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes et fiscalité PEA/CTO, impôt, dons, PEA, PER, courtage, comparateur, cours), dont des cas officiels (service-public.fr, BOFiP, brochures Fortuneo et BoursoBank).
-- `cargo test` dans `app/src-tauri` : 8 tests — lecture du catalogue, base SQLite (lignes, dividendes, événements), sauvegarde et restauration, reconnaissance des ISIN, dates, numéros de version.
-- À vérifier sur relevés réels : dividende net d'une action étrangère dans le PEA et dans le CTO.
-- À faire avant publication : comparer les intérêts calculés avec un relevé de livret réel.
+- `cargo test` à la racine : 63 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
+- `tests/robustesse.rs` : entrées vides, courtes, constantes ou mal formées (analyse technique, chandeliers, dividendes, ISIN, dates) et simulation des livrets pour toute date depuis le début de l'historique des taux ; aucune fonction ne doit planter, et les indicateurs gardent la longueur de l'historique.
+- `cargo test` dans `app/src-tauri` : 9 tests — base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
+- Intégration continue (GitHub Actions) à chaque envoi : `cargo fmt --check`, `cargo clippy -D warnings`, tests du cœur sous Linux et avec Rust 1.75 (version minimale), build de l'interface et tests de l'application sous Windows.
+- Règles de robustesse de l'application :
+  - aucune commande ne garde le verrou de la base pendant une requête réseau (vérifié par le compilateur : les commandes asynchrones doivent être `Send`) ;
+  - si une commande plante en tenant le verrou, il est récupéré au lieu de bloquer toutes les commandes suivantes ;
+  - toute saisie est revérifiée côté Rust (montants, quantités, dates, pays, symboles), même quand l'interface l'a déjà contrôlée ;
+  - chaque appel de l'interface affiche son erreur au lieu de l'ignorer ; les réponses d'une recherche, d'un conseil ou d'une courbe dépassées par une demande plus récente sont ignorées ;
+  - les listes affichées ont des clés uniques (une clé en double fait planter un composant Svelte).
+- Règle : pas de code mort. Une fonction qui n'est pas dans le menu n'a pas de code dans le dépôt.
+- Vérifications à faire sur de vrais relevés : `docs/VERIFICATION.md`.
 
 ---
 
@@ -371,12 +377,12 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 
 | Version | Contenu | État du code |
 | :--- | :--- | :--- |
-| **V1** (0.2.0) | Tableau de bord, Livrets, PEA et CTO (lignes, cours y compris en devises, dividendes, AG, analyse technique), exports CSV et PNG, Paramètres | En test |
-| V1.1 | Dates d'AG récupérées depuis les données ouvertes du BALO ; sources de cours Boursorama et Euronext ; mise à jour des taux par fichier signé ; écran Aide intégré | Chaîne de sources écrite |
-| V1.2 | Moins-values du CTO reportables 10 ans ; alertes de cours (seuils) ; notifications système | — |
-| V2 | **Impôt et dons** : TMI, décote, plafonnement, réduction pour dons (75 % jusqu'à 2 000 €, 66 % dans la limite de 20 % du revenu) | Calculs et écran écrits, retirés du menu |
-| V2 | **PER** : intérêt d'un versement selon la TMI actuelle et à la retraite, versement jusqu'au bas de tranche, comparateur des contrats | Calculs écrits |
-| V3 | Assurance-vie, import CSV des relevés | Catalogue des frais prêt |
+| **V1** (0.2.0) | Tableau de bord, Livrets, PEA et CTO (lignes, cours y compris en devises, dividendes, AG, analyse technique), exports CSV et PNG, Paramètres | Publiée |
+| **0.3 — stabilisation** | CTO et PEA-PME supprimés ; historique des taux des livrets depuis 2020 ; contrôles de saisie côté Rust ; **aucune nouvelle fonction** : code mort supprimé ; vérification des versions désactivée par défaut ; intégration continue ; fiscalité (flat tax, crédit d'impôt, retenues) testée contre des sources officielles (BOFiP, impots.gouv.fr, conventions fiscales) ; intérêts des livrets comparés à de vrais relevés ; deux à trois semaines d'utilisation réelle, une issue GitHub par problème, chaque issue corrigée avec un test | En cours |
+| V1.1 | Dates d'AG récupérées depuis les données ouvertes du BALO ; mise à jour des taux par fichier signé ; écran Aide intégré | — |
+| V1.2 | Alertes de cours (seuils) ; notifications système ; éventuellement PEA-PME et compte-titres, réécrits (ancien code dans l'historique, étiquette `v0.2.0`) | — |
+| V2 | **Impôt et dons** : TMI, décote, plafonnement, réduction pour dons ; **PER** : intérêt d'un versement selon la TMI | À réécrire (ancien code dans l'historique, étiquette `v0.2.0`) |
+| V3 | Assurance-vie, import CSV des relevés | — |
 
 ---
 
@@ -384,7 +390,10 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 
 - Taux de l'épargne réglementée au 01/08/2026 : https://www.service-public.gouv.fr/particuliers/actualites/A15818
 - Plafonds de versement, règles des quinzaines : https://www.service-public.gouv.fr/particuliers/vosdroits/F2365
-- Réduction d'impôt pour dons : https://www.economie.gouv.fr/particuliers/reduction-impot-don-associations
 - Éligibilité au PEA (titres de sociétés de l'UE et de l'EEE) : https://www.service-public.gouv.fr/particuliers/vosdroits/F2385
-- Retenues à la source des pays éligibles au PEA au 01/01/2025 : https://www.professioncgp.com/article/juridique-et-fiscal/impot-sur-le-revenu/declaration-de-revenus-quelle-est-la-fiscalite-du-pea.html
+- Retenues à la source des pays éligibles au PEA au 01/01/2025 (valeurs par défaut, indicatives) : https://www.professioncgp.com/article/juridique-et-fiscal/impot-sur-le-revenu/declaration-de-revenus-quelle-est-la-fiscalite-du-pea.html
+- PEA et crédits d'impôt conventionnels : BOI-RPPM-RCM-40-50-30, https://bofip.impots.gouv.fr/bofip/1560-PGP.html
+- Historique des taux du Livret A : barèmes IPP, https://www.ipp.eu/baremes-ipp/taxation-du-capital/taxation_capital.epargne.livret_a/table
+- Historique des taux du LEP : Banque de France, rapports annuels sur l'épargne réglementée (https://www.banque-france.fr) ; vie-publique.fr, rapport 2022 sur l'épargne réglementée
+- Retenue à la source en Grèce (5 % depuis le 01/01/2020) : Clearstream, fiche marché Grèce
 - Avis de réunion des assemblées générales (BALO) : https://www.journal-officiel.gouv.fr

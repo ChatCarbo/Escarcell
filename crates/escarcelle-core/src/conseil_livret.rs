@@ -176,7 +176,12 @@ mod tests {
 
     fn livrets() -> Vec<LivretDetenu> {
         vec![
-            LivretDetenu { nom: "Livret A".into(), solde: eur(20_000), plafond: eur(22_950), taux: Rate::from_micro(17_000) },
+            LivretDetenu {
+                nom: "Livret A".into(),
+                solde: eur(20_000),
+                plafond: eur(22_950),
+                taux: Rate::from_micro(17_000),
+            },
             LivretDetenu { nom: "LEP".into(), solde: eur(8_000), plafond: eur(10_000), taux: Rate::from_micro(25_000) },
         ]
     }
