@@ -36,6 +36,20 @@ export const api = {
   sauvegarderChiffre: (chemin, motDePasse) => invoke('sauvegarder_chiffre', { chemin, motDePasse }),
   lireSauvegarde: (chemin, motDePasse) => invoke('lire_sauvegarde', { chemin, motDePasse: motDePasse || null }),
   toutEffacer: (confirmation) => invoke('tout_effacer', { confirmation }),
+  // Import CSV
+  champsImport: () => invoke('champs_import'),
+  analyserImport: (chemin, correspondance, inclureDoublons) =>
+    invoke('analyser_import', { chemin, correspondance: correspondance ?? null, inclureDoublons: !!inclureDoublons }),
+  importer: (chemin, correspondance, inclureDoublons) =>
+    invoke('importer', { chemin, correspondance: correspondance ?? null, inclureDoublons: !!inclureDoublons }),
+  imports: () => invoke('imports'),
+  annulerImport: (id) => invoke('annuler_import', { id }),
+  correspondances: () => invoke('correspondances'),
+  enregistrerCorrespondance: (nom, colonnes) => invoke('enregistrer_correspondance', { nom, colonnes }),
+  supprimerCorrespondance: (nom) => invoke('supprimer_correspondance', { nom }),
+  enregistrerModele: (chemin) => invoke('enregistrer_modele', { chemin }),
+  analyserFichier: (chemin) => invoke('analyser_fichier', { chemin }),
+  importerPositions: (chemin, supprimerAbsentes) => invoke('importer_positions', { chemin, supprimerAbsentes: !!supprimerAbsentes }),
 };
 
 export const TYPES = {

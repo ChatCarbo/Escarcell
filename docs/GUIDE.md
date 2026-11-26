@@ -175,6 +175,37 @@ En bas : un camembert de répartition de vos lignes.
 
 Cliquez sur **Modifier**, mettez à jour la quantité et le PRU affichés par votre banque, puis **Enregistrer**. Le menu **Pays** permet de corriger le pays de la société s'il est mal deviné (voir ci-dessous). Pour une ligne vendue entièrement, cliquez sur ✕ puis **Confirmer ?**.
 
+Une ligne marquée **importée** est calculée à partir des achats et ventes d'un import CSV (voir ci-dessous) : sa quantité et son PRU ne se modifient pas à la main, seul son pays se corrige. La supprimer supprime aussi ses achats et ventes importés.
+
+### Importer son portefeuille
+
+Sur la page **PEA**, cliquez sur **Importer…** et choisissez un fichier exporté de votre banque ou de votre application de suivi : export CSV de **Moning**, export des positions de **BoursoBank**, export Excel « portefeuille simple » de **Fortuneo**, classeur **Excel** (.xlsx, .xls) ou OpenDocument (.ods), ou tout tableau qui contient, pour chaque titre, sa **quantité**, son **prix de revient (PRU)** et son **ISIN**, son **symbole** ou son **nom**. Rien à régler : Escarcelle reconnaît seul le format, la ligne d'en-tête (même après des lignes de titre), les colonnes en français ou en anglais, la virgule ou le point décimal.
+
+Un aperçu indique, titre par titre, ce qui va se passer : **Nouvelle** ligne, **Mise à jour** (ancienne et nouvelle quantité, ancien et nouveau PRU), **Inchangée**, ou **Erreur** (ISIN dont la clé est fausse, titre coté dans une autre devise que l'euro…). Les lignes de total et de liquidités sont ignorées. Cliquez sur **Importer** : tout est enregistré en une fois, après une copie de sécurité de vos données.
+
+- Un titre déjà présent est retrouvé par son ISIN ou son symbole : sa quantité et son PRU sont remplacés, son pays est gardé.
+- Les lignes de votre PEA absentes du fichier ne sont pas touchées, sauf si vous cochez « Supprimer aussi… ».
+- Fortuneo écrit le mnémonique entre parenthèses (« TOTALENERGIES (TTE) ») : il sert à trouver le cours. Une ligne d'actions à prime de fidélité (« AIR LIQUIDE PF28 », ISIN provisoire) est retrouvée d'après son nom ; l'aperçu vous demande de vérifier.
+- Un export de **PEA-PME** est refusé quand son titre l'indique (Escarcelle ne suit que le PEA). Ce n'est pas toujours le cas : n'importez que l'export de votre PEA.
+- Un titre présent deux fois dans le fichier est regroupé (quantités additionnées, PRU moyen pondéré).
+- Importer deux fois le même fichier ne change rien.
+- **Imports précédents** (en bas de la page PEA) : chaque import peut être annulé ; les lignes reviennent à leur état d'avant.
+
+### Importer un historique d'opérations
+
+Si le fichier choisi avec **Importer…** contient des **opérations datées** (colonnes date, compte, type : achats, ventes, dividendes, versements, retraits, et aussi les virements des livrets), Escarcelle ouvre l'import détaillé. Le modèle de fichier se télécharge depuis cet écran.
+
+1. **Colonnes** : reconnues seules si elles suivent le modèle ; sinon, associez chaque colonne à un champ et enregistrez cette correspondance sous un nom pour la prochaine fois.
+2. **Aperçu** : *Valide* ; *Avertissement* (importée, à vérifier) ; *Erreur* (non importée : vente de plus de titres que vous n'en déteniez à cette date, retrait supérieur au solde…) ; *Doublon* (déjà enregistrée) ; *Non importée* (intérêts d'un livret).
+3. **Importer** : les lignes retenues sont enregistrées toutes ensemble ou pas du tout.
+
+Bon à savoir :
+
+- Pour un achat ou une vente, le **montant est calculé** (quantité × prix) ; les **frais** s'ajoutent au PRU. Les lignes du PEA calculées ainsi sont marquées **importée** : leur quantité et leur PRU ne se modifient plus à la main.
+- Les **intérêts des livrets ne sont pas importés** : Escarcelle les recalcule et indique, année par année, s'ils sont conformes à ceux du fichier.
+- Pour un livret, Escarcelle connaît les taux depuis le 1er février 2020 : remplacez les opérations plus anciennes par une ligne `solde`.
+- L'annulation d'un import est refusée si elle rendait impossible une opération faite depuis : annulez d'abord l'import le plus récent.
+
 ---
 
 ## 6. Dividendes, impôts et assemblées générales

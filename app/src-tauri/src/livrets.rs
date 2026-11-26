@@ -104,7 +104,7 @@ pub fn simulation(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money
     Ok((net + capitalises, annees))
 }
 
-fn date_fr(d: Date) -> String {
+pub fn date_fr(d: Date) -> String {
     format!("{:02}/{:02}/{}", d.day(), d.month(), d.year())
 }
 
@@ -125,7 +125,7 @@ fn mouvements(ops: &[Operation]) -> Resultat<Vec<(i64, Mouvement)>> {
 }
 
 /// Anomalies (plafond dépassé, retrait supérieur au solde), chacune jugée à la date de son opération.
-fn anomalies(type_: &str, ops: &[Operation]) -> Resultat<Vec<(i64, Mouvement, Anomalie)>> {
+pub fn anomalies(type_: &str, ops: &[Operation]) -> Resultat<Vec<(i64, Mouvement, Anomalie)>> {
     let p = params(type_);
     let mvts = mouvements(ops)?;
     let seuls: Vec<Mouvement> = mvts.iter().map(|(_, m)| *m).collect();
@@ -147,19 +147,7 @@ pub fn verifier_modification(type_: &str, avant: &[Operation], apres: &[Operatio
             continue;
         }
         let quand = date_fr(m.date);
-        let cause = match a {
-            Anomalie::PlafondDepasse { marge } => format!(
-                "le plafond de {plafond} serait dépassé au {quand} (versement maximum possible ce jour-là : {marge}, intérêts capitalisés compris)"
-            ),
-            Anomalie::SoldeInsuffisant { solde } => {
-                format!("le solde au {quand} ({solde}) serait insuffisant pour ce retrait")
-            }
-            Anomalie::AvantSoldeDepart { depart } => format!(
-                "elle est datée avant le solde de départ du {} (déjà compris dans ce solde)",
-                date_fr(depart)
-            ),
-            Anomalie::SoldeDepartEnDouble => "ce livret a déjà un solde de départ (supprimez-le d'abord)".into(),
-        };
+        let cause = decrire(&a, plafond, m.date);
         return Err(if ajout && id == 0 {
             format!("Opération refusée : {cause}.")
         } else {
@@ -173,6 +161,21 @@ pub fn verifier_modification(type_: &str, avant: &[Operation], apres: &[Operatio
         });
     }
     Ok(())
+}
+
+/// Cause d'une anomalie, en clair.
+pub fn decrire(a: &Anomalie, plafond: Money, date: Date) -> String {
+    let quand = date_fr(date);
+    match a {
+        Anomalie::PlafondDepasse { marge } => format!(
+            "le plafond de {plafond} serait dépassé au {quand} (versement maximum possible ce jour-là : {marge}, intérêts capitalisés compris)"
+        ),
+        Anomalie::SoldeInsuffisant { solde } => format!("le solde au {quand} ({solde}) serait insuffisant pour ce retrait"),
+        Anomalie::AvantSoldeDepart { depart } => {
+            format!("elle est datée avant le solde de départ du {} (déjà compris dans ce solde)", date_fr(*depart))
+        }
+        Anomalie::SoldeDepartEnDouble => "ce livret a déjà un solde de départ (supprimez-le d'abord)".into(),
+    }
 }
 
 pub fn tous(etat: &Etat) -> Resultat<Vec<LivretDto>> {

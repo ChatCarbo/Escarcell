@@ -8,6 +8,9 @@
 //! - [`livret`] : intérêts du Livret A, LDDS et LEP par quinzaines ;
 //! - [`conseil_livret`] : meilleures dates de versement et de retrait, répartition entre livrets ;
 //! - [`dividendes`] : dividendes et retenues à la source dans le PEA ;
+//! - [`import_csv`] : lecture et contrôle des fichiers CSV d'opérations ;
+//! - [`import_positions`] : lecture des exports de portefeuille (Moning, BoursoBank, tableurs) ;
+//! - [`journal`] : quantités et PRU du PEA recalculés à partir des achats et ventes ;
 //! - [`analyse`], [`chandeliers`] : indicateurs techniques, motifs et structure de tendance ;
 //! - [`params`] : séries de paramètres réglementaires datés et jeu embarqué.
 //!
@@ -20,6 +23,9 @@ pub mod conseil_livret;
 pub mod date;
 pub mod dividendes;
 pub mod identifiants;
+pub mod import_csv;
+pub mod import_positions;
+pub mod journal;
 pub mod livret;
 pub mod money;
 pub mod params;

@@ -1,5 +1,6 @@
 //! PEA : suivi de lignes (titre, quantité, PRU), cours automatiques, plus ou moins-values et dividendes.
-//! Pas d'établissement ni de journal d'opérations : on saisit ce qu'on détient.
+//! Pas d'établissement : on saisit ce qu'on détient, ou on importe ses achats et ventes (lignes calculées
+//! par le journal, voir `import`).
 //! Seuls les titres cotés en euros sont acceptés.
 
 use escarcelle_core::dividendes::{self as div, Versement};
@@ -64,6 +65,8 @@ fn pays_ligne(p: &Position) -> Option<String> {
 #[derive(Serialize)]
 pub struct LigneDto {
     pub id: i64,
+    /// Quantité et PRU calculés à partir des achats et ventes importés.
+    pub journal: bool,
     pub isin: Option<String>,
     pub symbole: String,
     pub nom: String,
@@ -148,6 +151,7 @@ fn ligne(db: &Store, p: Position, jour: Date) -> Resultat<LigneDto> {
 
     Ok(LigneDto {
         id: p.id,
+        journal: p.journal,
         cours_horodatage: dernier.as_ref().map(|c| c.horodatage),
         cours_source: dernier.map(|c| c.source),
         isin: p.isin,
@@ -266,6 +270,11 @@ pub async fn ajouter_position(etat: State<'_, Etat>, saisie: SaisieLigne) -> Res
         return Err("Indiquez un ISIN ou un mnémonique.".into());
     }
     let isin = est_isin(&id).then(|| id.clone());
+    if let Some(i) = &isin {
+        if etat.db().positions().map_err(err)?.iter().any(|p| p.journal && p.isin.as_deref() == Some(i.as_str())) {
+            return Err("Ce titre est suivi par les opérations importées : ajoutez l'achat par un import CSV.".into());
+        }
+    }
 
     // Résolution du symbole : on cherche l'ISIN ou le mnémonique ; à défaut, on garde la saisie telle quelle.
     let (symbole, nom_trouve) = match saisie.symbole.map(|s| s.trim().to_string()).filter(|s| !s.is_empty()) {
@@ -302,6 +311,7 @@ pub async fn ajouter_position(etat: State<'_, Etat>, saisie: SaisieLigne) -> Res
             quantite_micro: saisie.quantite_micro,
             pru_micro: saisie.pru_micro,
             pays: code_pays(saisie.pays),
+            journal: false,
         })
         .map_err(err)?;
         if let Some(c) = cotation {
@@ -321,13 +331,32 @@ pub fn modifier_position(
     pays: Option<String>,
 ) -> Resultat<PortefeuilleDto> {
     verifier_saisie(quantite_micro, pru_micro)?;
-    etat.db().modifier_position(id, quantite_micro, pru_micro, code_pays(pays).as_deref()).map_err(err)?;
+    {
+        let db = etat.db();
+        let p = db.positions().map_err(err)?.into_iter().find(|p| p.id == id).ok_or("Ligne introuvable.")?;
+        // Ligne calculée par le journal : seul le pays se modifie, la quantité et le PRU viennent des opérations.
+        if p.journal && (p.quantite_micro != quantite_micro || p.pru_micro != pru_micro) {
+            return Err("Cette ligne est calculée à partir des opérations importées : sa quantité et son PRU \
+                        changent par un nouvel import ou l'annulation d'un import."
+                .into());
+        }
+        db.modifier_position(id, quantite_micro, pru_micro, code_pays(pays).as_deref()).map_err(err)?;
+    }
     portefeuille(&etat)
 }
 
 #[tauri::command]
 pub fn supprimer_position(etat: State<'_, Etat>, id: i64) -> Resultat<PortefeuilleDto> {
-    etat.db().supprimer_position(id).map_err(err)?;
+    {
+        let mut db = etat.db();
+        let journal = db.positions().map_err(err)?.into_iter().any(|p| p.id == id && p.journal);
+        // Ligne du journal : ses achats et ventes sont supprimés avec elle (sinon elle reviendrait au prochain calcul).
+        if journal {
+            db.supprimer_ligne_journal(id).map_err(err)?;
+        } else {
+            db.supprimer_position(id).map_err(err)?;
+        }
+    }
     portefeuille(&etat)
 }
 

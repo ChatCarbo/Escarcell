@@ -4,6 +4,8 @@ mod alertes;
 mod chiffrement;
 mod commands;
 mod cours;
+mod import;
+mod import_pea;
 mod livrets;
 mod portefeuille;
 mod reglages;
@@ -74,6 +76,17 @@ fn main() {
             livrets::ouvrir_livret,
             livrets::conseil_livret,
             livrets::repartir_livrets,
+            import::champs_import,
+            import::analyser_import,
+            import::importer,
+            import::imports,
+            import::annuler_import,
+            import::correspondances,
+            import::enregistrer_correspondance,
+            import::supprimer_correspondance,
+            import::enregistrer_modele,
+            import_pea::analyser_fichier,
+            import_pea::importer_positions,
         ])
         .run(tauri::generate_context!())
         .expect("erreur au lancement d'Escarcelle");

@@ -5,6 +5,10 @@
   import { euros, pct, microVersTexte, versMicro, aujourdHui } from '../lib/format.js';
   import Donut from '../lib/Donut.svelte';
   import Graphique from '../lib/Graphique.svelte';
+  import { open } from '@tauri-apps/plugin-dialog';
+  import ImportPortefeuille from '../lib/ImportPortefeuille.svelte';
+  import ImportOperations from '../lib/ImportOperations.svelte';
+  import HistoriqueImports from '../lib/HistoriqueImports.svelte';
 
   const PALETTE = ['#10B981', '#38BDF8', '#FBBF24', '#0284C7', '#34D399', '#F97316', '#8B5CF6'];
 
@@ -20,10 +24,14 @@
   let apercu = $state(null); // { symbole, nom } : titre recherché, pas encore détenu
   let evenements = $state([]);
   let nouvelEvt = $state({ date: '', note: '' });
-  let edition = $state(null); // { id, quantite, pru, pays }
+  let edition = $state(null); // { id, journal, quantiteMicro, pruMicro, quantite, pru, pays }
   let coursManuel = $state(null); // { symbole, valeur }
   let aSupprimer = $state(null);
   let messageExport = $state('');
+  // Import : { chemin, genre: 'positions' | 'operations', positions } pendant l'aperçu.
+  let importEnCours = $state(null);
+  let lectureImport = $state(false);
+  let imports = $state([]);
   let delai;
   let minuterie;
   let numeroRecherche = 0; // ignore les réponses d'une recherche dépassée par une frappe plus récente
@@ -105,6 +113,7 @@
     try {
       pf = await api.positions();
       evenements = await api.evenements();
+      imports = await api.imports();
     } catch (e) {
       erreurs = [String(e)];
       return;
@@ -120,6 +129,30 @@
     clearInterval(minuterie);
     clearTimeout(delai);
   });
+
+  // Import : le fichier est reconnu tout seul (export Moning, BoursoBank, classeur Excel, historique d'opérations).
+  async function choisirImport() {
+    const chemin = await open({
+      multiple: false,
+      filters: [
+        { name: 'Export de portefeuille ou d\'opérations', extensions: ['csv', 'xlsx', 'xls', 'ods', 'txt', 'tsv'] },
+        { name: 'Tous les fichiers', extensions: ['*'] },
+      ],
+    });
+    if (!chemin) return;
+    erreurs = [];
+    messageExport = '';
+    lectureImport = true;
+    const r = await essayer(() => api.analyserFichier(chemin));
+    lectureImport = false;
+    if (r) importEnCours = { chemin, genre: r.genre, positions: r.positions };
+  }
+
+  async function importTermine(texte) {
+    importEnCours = null;
+    messageExport = texte;
+    await charger();
+  }
 
   async function ajouter(ev) {
     ev.preventDefault();
@@ -148,8 +181,9 @@
   }
 
   async function enregistrerEdition() {
-    const q = versMicro(edition.quantite);
-    const p = versMicro(edition.pru);
+    // Ligne calculée par le journal : seul le pays se modifie.
+    const q = edition.journal ? edition.quantiteMicro : versMicro(edition.quantite);
+    const p = edition.journal ? edition.pruMicro : versMicro(edition.pru);
     if (!q || q <= 0 || p === null || p < 0) return (erreurs = ['Quantité et PRU invalides.']);
     const r = await essayer(() => api.modifierPosition(edition.id, q, p, edition.pays || null));
     if (r) {
@@ -218,11 +252,27 @@
 <header class="entete">
   <h1>PEA</h1>
   <div class="boutons">
+    <button onclick={choisirImport} disabled={lectureImport}>{lectureImport ? 'Lecture du fichier…' : 'Importer…'}</button>
     <button onclick={exporter} disabled={!pf?.lignes.length}>Exporter en CSV</button>
     <button onclick={actualiser} disabled={chargement}>{chargement ? 'Actualisation…' : 'Actualiser les cours'}</button>
   </div>
 </header>
 {#if messageExport}<p class="discret petit">{messageExport}</p>{/if}
+
+{#if importEnCours?.genre === 'positions'}
+  <ImportPortefeuille
+    chemin={importEnCours.chemin}
+    analyse={importEnCours.positions}
+    fermer={() => (importEnCours = null)}
+    fini={(r) => importTermine(`Import terminé : ${r.positions.compteurs.nouvelles} ligne(s) ajoutée(s), ${r.positions.compteurs.mises_a_jour} mise(s) à jour${r.supprimees ? `, ${r.supprimees} supprimée(s)` : ''}. Copie de sécurité : ${r.sauvegarde}`)}
+  />
+{:else if importEnCours?.genre === 'operations'}
+  <ImportOperations
+    chemin={importEnCours.chemin}
+    fermer={() => importTermine('')}
+    fini={async () => { imports = await api.imports(); pf = await api.positions(); actualiser(); }}
+  />
+{/if}
 
 {#if erreurs.length}
   <section class="alertes">{#each erreurs as e}<p>{e}</p>{/each}</section>
@@ -273,9 +323,9 @@
             <tr class:selectionnee={detail === l.symbole}>
               <td>
                 <button class="lien" onclick={() => { detail = l.symbole; apercu = null; }}>{l.nom}</button>
-                <div class="discret petit">{l.symbole}{l.pays ? ` · ${PAYS[l.pays] ?? l.pays}` : ''}</div>
+                <div class="discret petit">{l.symbole}{l.pays ? ` · ${PAYS[l.pays] ?? l.pays}` : ''}{#if l.journal}<span class="badge" title="Quantité et PRU calculés à partir des achats et ventes importés">importée</span>{/if}</div>
               </td>
-              {#if edition?.id === l.id}
+              {#if edition?.id === l.id && !l.journal}
                 <td class="nombre"><input class="court" bind:value={edition.quantite} inputmode="decimal" /></td>
                 <td class="nombre"><input class="court" bind:value={edition.pru} inputmode="decimal" /></td>
               {:else}
@@ -312,9 +362,9 @@
                   <button class="discret" onclick={enregistrerEdition}>Enregistrer</button>
                   <button class="discret" onclick={() => (edition = null)}>Annuler</button>
                 {:else}
-                  <button class="discret" onclick={() => (edition = { id: l.id, quantite: microVersTexte(l.quantite_micro), pru: microVersTexte(l.pru_micro), pays: l.pays ?? '' })}>Modifier</button>
+                  <button class="discret" onclick={() => (edition = { id: l.id, journal: l.journal, quantiteMicro: l.quantite_micro, pruMicro: l.pru_micro, quantite: microVersTexte(l.quantite_micro), pru: microVersTexte(l.pru_micro), pays: l.pays ?? '' })}>Modifier</button>
                   <button class="discret" onclick={() => (coursManuel = { symbole: l.symbole, valeur: '' })}>Cours</button>
-                  <button class="discret" class:negatif={aSupprimer === l.id} onclick={() => supprimer(l)} aria-label="Supprimer">{aSupprimer === l.id ? 'Confirmer ?' : '✕'}</button>
+                  <button class="discret" class:negatif={aSupprimer === l.id} onclick={() => supprimer(l)} aria-label="Supprimer" title={l.journal ? 'Supprime la ligne et ses achats et ventes importés' : 'Supprimer la ligne'}>{aSupprimer === l.id ? (l.journal ? 'Supprimer avec ses opérations ?' : 'Confirmer ?') : '✕'}</button>
                 {/if}
               </td>
             </tr>
@@ -416,4 +466,11 @@
   {#if parts.length > 1}
     <Donut titre="Répartition des lignes" {parts} />
   {/if}
+{/if}
+
+{#if imports.length}
+  <details class="carte">
+    <summary><h3 class="resume">Imports précédents ({imports.length})</h3></summary>
+    <HistoriqueImports {imports} annule={() => importTermine('Import annulé : les lignes du PEA sont revenues à leur état d\'avant.')} />
+  </details>
 {/if}

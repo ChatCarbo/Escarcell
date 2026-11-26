@@ -1,6 +1,6 @@
 # Escarcelle — Spécification
 
-> Version du document : 13 — 25/11/2026 — version 0.4 en cours (lot 1 : sauvegarde chiffrée ; livrets : intérêts cumulés et maximaux)
+> Version du document : 14 — 26/11/2026 — version 0.4 en cours (lot 1 : sauvegarde chiffrée ; lot 2 : import CSV ; livrets : intérêts cumulés et maximaux)
 > Auteur : ChatCarbo — Licence GPL-3.0-or-later
 > Ce document décrit la **V1** telle qu'elle est développée, puis ce qui est prévu ensuite.
 
@@ -306,6 +306,40 @@ Aucune autre connexion. Escarcelle communique donc avec l'extérieur pour lire d
 - Le format est vérifié par un **vecteur de référence produit par une implémentation indépendante** (Python, bibliothèque `cryptography`), en plus des tests d'aller-retour.
 - Écart à la spécification 0.4 : les données ne sont pas compressées (une base Escarcelle pèse quelques centaines de Kio) ; la sauvegarde automatique n'est pas encore faite (question ouverte : mémoriser le mot de passe dans le coffre Windows).
 
+### 7.3 Import (0.4, lot 2)
+
+Un seul bouton **Importer…** sur la page PEA, à côté d'« Exporter en CSV ». Le fichier est lu sans réglage : classeur (.xlsx, .xls, .ods, reconnu à son contenu, bibliothèque `calamine`), tableau HTML (exports « Excel » de certaines banques) ou texte CSV. La ligne d'en-tête est cherchée dans les 30 premières lignes. Le fichier est classé :
+
+- **photo du portefeuille** si l'en-tête contient une quantité, un prix de revient et un ISIN, un symbole ou un nom (intitulés français et anglais : Moning `Total Shares`/`Price average`, BoursoBank `quantity`/`buyingPrice`, `Quantité`, `PRU`, `Prix de revient`…) ;
+- **historique d'opérations** s'il contient date, compte et type (tableau ci-dessous).
+
+| Photo du portefeuille | Fonctionnement |
+| :--- | :--- |
+| Correspondance | Titre retrouvé par ISIN, puis par symbole : celui du fichier (Moning), celui trouvé sur Yahoo Finance d'après l'ISIN, le mnémonique du libellé (Fortuneo « (TTE) » → TTE.PA, s'il est coté), ou en dernier recours d'après le nom nettoyé (« PF28 » retiré ; signalé « à vérifier »). Export dont le titre mentionne un PEA-PME refusé |
+| Statuts | Nouvelle, mise à jour (avant → après), inchangée, ignorée (total, liquidités, quantité nulle, doublon regroupé), erreur (ISIN invalide, quantité ou PRU illisible, titre coté hors euro, ligne calculée par le journal) |
+| Écriture | Une transaction après copie de sécurité ; le pays d'une ligne mise à jour est gardé ; plusieurs lignes saisies pour un même titre sont remplacées par une seule ; lignes absentes du fichier supprimées seulement sur demande |
+| Annulation | Lignes écrites retirées, lignes remplacées ou supprimées remises à l'identique |
+
+#### Historique d'opérations
+
+| Étape | Fonctionnement |
+| :--- | :--- |
+| Fichier | 20 Mo et 100 000 lignes au plus. Encodage détecté : UTF-16 (marque d'ordre), UTF-8 (avec ou sans marque), sinon Windows-1252. Séparateur : celui de `;`, tabulation, `,` qui donne le plus de lignes ayant autant de champs que l'en-tête (à égalité, dans cet ordre). Séparateur décimal : vote des valeurs non ambiguës (`1,234` ne vote pas), la virgule à égalité ; toujours le point si le séparateur de champs est la virgule |
+| Format de référence | `date;compte;type;isin;libelle;quantite;prix_unitaire;montant;frais;devise;note`, modèle téléchargeable. Synonymes d'en-tête reconnus (Date d'opération, Qté, Cours, Courtage…) |
+| Types | PEA : achat, vente, dividende, versement, retrait, frais. Livrets : versement, retrait, **solde** (solde de départ, ajouté à la spec), interets |
+| Nombres | Espaces, espaces insécables, apostrophes et l'autre séparateur admis comme séparateurs de milliers (groupes de 3 chiffres) ; 2 décimales pour les montants, 6 pour les quantités et les prix (zéros finaux admis) ; montant négatif admis pour un retrait ou des frais (relevé signé) |
+| Achat, vente | ISIN valide obligatoire ; montant = quantité × prix arrondi au centime (un montant du fichier, frais compris ou non, est comparé au centime près : avertissement sinon) ; frais ajoutés au PRU |
+| Erreurs (ligne non importée) | Champ illisible, ISIN invalide, type impossible pour le compte, devise autre que l'euro, date future, livret avant le 01/02/2020, PEA avant juillet 1992, vente supérieure à la quantité détenue à sa date, retrait supérieur au solde, solde de départ en double ou postérieur à une opération, solde de départ au-delà d'une fois et demie le plafond |
+| Avertissements (ligne importée) | Versement au-delà du plafond, montant d'achat ou de vente différent du calcul, opération antérieure à l'ouverture du PEA, ligne du PEA saisie à la main remplacée par le calcul du journal |
+| Livrets | Contrôle à la date de valeur avec l'historique complet (opérations enregistrées + lignes retenues). Une ligne refusée pouvant en rendre une autre impossible, le refus se fait jour après jour, en recalculant. Une opération déjà enregistrée qui deviendrait impossible bloque tout l'import |
+| Intérêts des livrets | Jamais importés : comparés au calcul d'Escarcelle par année (crédités au 31/12 ou avant le 16/01 : année précédente) ; « conformes » ou écart affiché ; pas de comparaison pour l'année en cours ni si l'historique commence par un solde de départ en cours d'année |
+| Doublons | Même compte, date, type, ISIN, quantité et montant qu'une opération enregistrée, comptés un pour un (deux lignes identiques face à une seule opération : un doublon et une ligne valide). Ignorés par défaut, importables sur demande |
+| PEA | Quantité et PRU de chaque titre recalculés à partir de tout le journal (`escarcelle-core::journal`) : PRU = coût frais compris / quantité, inchangé par une vente, remis à zéro quand la ligne est soldée ; le même jour, achats avant ventes. La ligne obtenue est marquée « importée » : quantité et PRU non modifiables à la main |
+| Écriture | Seules les lignes retenues, en une transaction. Copie de sécurité juste avant (`escarcelle-avant-import-AAAAMMJJ-HHMMSS.db`, 5 dernières). Comptes manquants ouverts à la date de leur première opération. Symbole de cotation des nouveaux titres cherché par ISIN (sinon l'ISIN sert de symbole) |
+| Annulation | En bloc : opérations supprimées, lignes du PEA recalculées, lignes saisies à la main restaurées s'il ne reste aucun achat ni vente du titre, comptes ouverts par l'import refermés s'ils sont vides. Refusée si une opération restante devenait impossible |
+| Correspondances | Associations colonne → champ enregistrées sous un nom, appliquées par intitulé de colonne |
+| Rapport | Export CSV de toutes les lignes avec statut, « importée » et messages |
+
 ### 7.1 Exports
 
 | Export | Contenu |
@@ -406,6 +440,7 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 | :--- | :--- | :--- |
 | **V1** (0.2.0) | Tableau de bord, Livrets, PEA et CTO (lignes, cours y compris en devises, dividendes, AG, analyse technique), exports CSV et PNG, Paramètres | Publiée |
 | **0.3 — stabilisation** | CTO et PEA-PME supprimés ; historique des taux des livrets depuis 2020 ; contrôles de saisie côté Rust ; **aucune nouvelle fonction** : code mort supprimé ; vérification des versions désactivée par défaut ; intégration continue ; fiscalité (flat tax, crédit d'impôt, retenues) testée contre des sources officielles (BOFiP, impots.gouv.fr, conventions fiscales) ; intérêts des livrets comparés à de vrais relevés ; deux à trois semaines d'utilisation réelle, une issue GitHub par problème, chaque issue corrigée avec un test | En cours |
+| 0.4 | **Import CSV des opérations** du PEA et des livrets (§7.3) : aperçu ligne par ligne, import tout ou rien après copie de sécurité, annulation en bloc, PRU recalculés par le journal | Fait (lot 2) |
 | 0.4 | Livrets : **intérêt maximal de l'année en cours** sur chaque carte = maximum théorique d'un livret resté au plafond du 1er janvier au 31 décembre, soit la somme, sur les 24 quinzaines, de plafond × taux de la quinzaine / 24, arrondie au centime une fois. En 2026 : Livret A 367,20 € (22 950 € à 1,60 % en moyenne), LDDS 192,00 €, LEP 251,67 € | Demandé, reporté après la stabilisation |
 | 0.4 | PEA : **simulation d'un retrait et de son impôt**. À saisir : date d'ouverture du plan et total des versements (aujourd'hui, Escarcelle suit des lignes, pas les versements). Calcul : gain contenu dans le retrait au prorata (gain total × retrait / valeur du plan) ; avant 5 ans, retrait = clôture (sauf exceptions) et gain soumis à l'impôt sur le revenu et aux prélèvements sociaux ; après 5 ans, prélèvements sociaux seuls et retraits partiels possibles sans clôture. Taux et règles à vérifier sur les sources officielles (BOFiP, service-public.fr) au moment du développement, chacun couvert par un test | Demandé |
 | 0.4 | **Évolution du patrimoine** (courbe mensuelle livrets + PEA et montant net versé, tableau annuel) et **frais** (total payé, part des montants investis, TRI avec et sans frais) ; **analyse technique gelée** : aucun nouvel indicateur. Détail dans la spécification 0.4 (§2 bis) | Ajouté à la spec 0.4 |
@@ -413,7 +448,7 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 | V1.1 | Dates d'AG récupérées depuis les données ouvertes du BALO ; mise à jour des taux par fichier signé ; écran Aide intégré | — |
 | V1.2 | Alertes de cours (seuils) ; notifications système ; éventuellement PEA-PME et compte-titres, réécrits (ancien code dans l'historique, étiquette `v0.2.0`) | — |
 | V2 | **Impôt et dons** : TMI, décote, plafonnement, réduction pour dons ; **PER** : intérêt d'un versement selon la TMI | À réécrire (ancien code dans l'historique, étiquette `v0.2.0`) |
-| V3 | Assurance-vie, import CSV des relevés | — |
+| V3 | Assurance-vie ; imports propres à chaque courtier, import PDF | — |
 
 ---
 

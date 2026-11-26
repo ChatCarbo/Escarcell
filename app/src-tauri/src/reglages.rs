@@ -55,6 +55,35 @@ fn horodatage() -> (String, String) {
     (format!("{d} {h:02}:{m:02}"), format!("{}{:02}{:02}-{h:02}{m:02}{sec:02}", d.year(), d.month(), d.day()))
 }
 
+/// Copie de sécurité de la base dans le dossier de données (`escarcelle-<motif>-AAAAMMJJ-HHMMSS.db`), avant
+/// une opération qui remplace ou ajoute beaucoup de données. Seules les dernières copies de ce motif sont gardées.
+pub fn copie_de_securite(db: &Store, chemin_db: &Path, motif: &str) -> Resultat<PathBuf> {
+    let dossier = chemin_db.parent().map(Path::to_path_buf).unwrap_or_default();
+    let prefixe = format!("escarcelle-{motif}-");
+    let mut copie = dossier.join(format!("{prefixe}{}.db", horodatage().1));
+    // Deux copies dans la même seconde : suffixe pour ne pas écraser la première.
+    let mut n = 1;
+    while copie.exists() {
+        n += 1;
+        copie = dossier.join(format!("{prefixe}{}-{n}.db", horodatage().1));
+    }
+    db.sauvegarder(&copie).map_err(err)?;
+    if let Ok(entrees) = std::fs::read_dir(&dossier) {
+        let mut copies: Vec<PathBuf> = entrees
+            .filter_map(|e| e.ok().map(|e| e.path()))
+            .filter(|p| {
+                p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(&prefixe) && n.ends_with(".db"))
+            })
+            .collect();
+        copies.sort();
+        let trop = copies.len().saturating_sub(COPIES_GARDEES);
+        for p in &copies[..trop] {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+    Ok(copie)
+}
+
 /// Fichier temporaire dans le dossier de données d'Escarcelle.
 fn temporaire(etat: &Etat, nom: &str) -> PathBuf {
     etat.chemin_db.with_file_name(format!("escarcelle-{nom}-{}.tmp", std::process::id()))
@@ -202,26 +231,9 @@ const COPIES_GARDEES: usize = 5;
 pub fn restaurer(etat: State<'_, Etat>, chemin: String, mot_de_passe: Option<String>) -> Resultat<()> {
     let l = lire(&etat, Path::new(&chemin), mot_de_passe.as_deref())?;
     let resultat = (|| {
-        let dossier = etat.chemin_db.parent().map(Path::to_path_buf).unwrap_or_default();
-        let copie = dossier.join(format!("escarcelle-avant-restauration-{}.db", horodatage().1));
-        etat.db().sauvegarder(&copie).map_err(err)?;
-        // On ne garde que les dernières copies de sécurité.
-        if let Ok(entrees) = std::fs::read_dir(&dossier) {
-            let mut copies: Vec<PathBuf> = entrees
-                .filter_map(|e| e.ok().map(|e| e.path()))
-                .filter(|p| {
-                    p.file_name()
-                        .and_then(|n| n.to_str())
-                        .is_some_and(|n| n.starts_with("escarcelle-avant-restauration-") && n.ends_with(".db"))
-                })
-                .collect();
-            copies.sort();
-            let trop = copies.len().saturating_sub(COPIES_GARDEES);
-            for p in &copies[..trop] {
-                let _ = std::fs::remove_file(p);
-            }
-        }
-        etat.db().restaurer(&l.base).map_err(err)
+        let mut db = etat.db();
+        copie_de_securite(&db, &etat.chemin_db, "avant-restauration")?;
+        db.restaurer(&l.base).map_err(err)
     })();
     if l.a_effacer {
         let _ = std::fs::remove_file(&l.base);

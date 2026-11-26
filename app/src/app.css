@@ -237,3 +237,21 @@ table.decomposition tr.total td { font-weight: 600; border-top: 2px solid var(--
 .barre-haut .reglages { display: inline-flex; align-items: center; gap: 6px; }
 .barre-haut .reglages.actif { color: var(--accent); border-color: var(--accent); }
 .mention.version { margin-top: 4px; }
+
+/* Import CSV */
+.compteurs-import { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin-bottom: 12px; }
+.case-simple { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 12px; }
+.colonnes-import { max-width: 640px; }
+.colonnes-import td:first-child { overflow-wrap: anywhere; }
+.colonnes-import select { width: 100%; min-width: 160px; }
+.correspondances { margin-top: 12px; max-width: 760px; }
+.apercu-import { font-size: 12px; }
+.apercu-import td { vertical-align: top; }
+.titre-import { max-width: 220px; overflow-wrap: anywhere; }
+.messages-import { min-width: 240px; max-width: 420px; overflow-wrap: anywhere; }
+.badge.attention, .apercu-import .badge { white-space: nowrap; }
+.apercu-import .badge { margin-left: 0; }
+.import-pea p { margin: 8px 0; }
+.absentes-import { max-width: 760px; margin-top: 8px; }
+details.carte > summary { cursor: pointer; list-style-position: inside; }
+h3.resume { display: inline; margin: 0; }

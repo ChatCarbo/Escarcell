@@ -120,6 +120,38 @@ DELETE FROM infos_titres WHERE symbole NOT IN (SELECT symbole FROM positions);
 -- On oublie les valeurs déjà enregistrées pour qu'elles soient recalculées à la prochaine actualisation.
 DELETE FROM infos_titres;
 "#,
+    r#"
+-- Version 0.4 : import CSV des opérations. Chaque opération importée garde le numéro de son import,
+-- ce qui permet d'annuler un import en bloc.
+CREATE TABLE imports (
+    id            INTEGER PRIMARY KEY,
+    date          TEXT NOT NULL DEFAULT (datetime('now')),
+    fichier       TEXT NOT NULL,
+    lignes        INTEGER NOT NULL,
+    -- Comptes ouverts par l'import (identifiants séparés par des virgules), refermés s'il est annulé.
+    comptes_crees TEXT NOT NULL DEFAULT ''
+);
+-- Lignes du PEA saisies à la main remplacées par le calcul du journal, restaurées si l'import est annulé.
+CREATE TABLE imports_positions (
+    import_id      INTEGER NOT NULL REFERENCES imports(id) ON DELETE CASCADE,
+    isin           TEXT,
+    symbole        TEXT NOT NULL,
+    nom            TEXT NOT NULL,
+    quantite_micro INTEGER NOT NULL,
+    pru_micro      INTEGER NOT NULL,
+    pays           TEXT
+);
+ALTER TABLE operations ADD COLUMN import_id INTEGER REFERENCES imports(id);
+CREATE INDEX operations_par_import ON operations(import_id);
+-- 1 : quantité et PRU calculés à partir des achats et ventes du journal (non modifiables à la main).
+ALTER TABLE positions ADD COLUMN journal INTEGER NOT NULL DEFAULT 0;
+"#,
+    r#"
+-- Version 0.4 : import d'une photo du portefeuille (export Moning, BoursoBank, tableur…). Pour annuler, on
+-- garde dans imports_positions les lignes remplacées ou supprimées, et une marque (quantité 0) pour chaque
+-- ligne écrite.
+ALTER TABLE imports ADD COLUMN genre TEXT NOT NULL DEFAULT 'OPERATIONS';
+"#,
 ];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -162,6 +194,46 @@ pub struct Position {
     pub pru_micro: i64,
     /// Pays de la société (code ISO), pour la retenue à la source sur les dividendes.
     pub pays: Option<String>,
+    /// Ligne calculée à partir du journal des achats et ventes importés.
+    #[serde(default)]
+    pub journal: bool,
+}
+
+/// État final d'une ligne du PEA après rejeu du journal (quantité 0 : ligne soldée, supprimée).
+#[derive(Clone, Debug)]
+pub struct LignePeaCalculee {
+    pub isin: String,
+    pub quantite_micro: i64,
+    pub pru_micro: i64,
+    /// Symbole et nom d'une nouvelle ligne (une ligne existante garde les siens).
+    pub symbole: String,
+    pub nom: String,
+}
+
+/// Tout ce qu'un import écrit, préparé et contrôlé à l'avance : il est appliqué en une transaction.
+#[derive(Clone, Debug, Default)]
+pub struct PlanImport {
+    pub fichier: String,
+    pub lignes: i64,
+    /// Comptes à ouvrir s'ils n'existent pas (type, nom, date d'ouverture).
+    pub comptes: Vec<Compte>,
+    /// Opérations avec le type de leur compte (le `compte_id` est retrouvé à l'écriture).
+    pub operations: Vec<(String, Operation)>,
+    /// État final des lignes du PEA touchées par l'import.
+    pub lignes_pea: Vec<LignePeaCalculee>,
+}
+
+/// Import enregistré.
+#[derive(Clone, Debug, Serialize)]
+pub struct ImportEnregistre {
+    pub id: i64,
+    pub date: String,
+    pub fichier: String,
+    pub lignes: i64,
+    /// Opérations encore présentes (certaines ont pu être supprimées une à une).
+    pub operations: i64,
+    /// « OPERATIONS » (historique) ou « POSITIONS » (photo du portefeuille).
+    pub genre: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -263,7 +335,8 @@ impl Store {
     pub fn effacer_tout(&mut self) -> Result<(), StoreError> {
         let tx = self.conn.transaction()?;
         tx.execute_batch(
-            "DELETE FROM operations; DELETE FROM positions; DELETE FROM comptes; DELETE FROM cours; DELETE FROM parametres; \
+            "DELETE FROM operations; DELETE FROM imports_positions; DELETE FROM imports; DELETE FROM positions; \
+             DELETE FROM comptes; DELETE FROM cours; DELETE FROM parametres; \
              DELETE FROM dividendes; DELETE FROM infos_titres; DELETE FROM evenements;",
         )?;
         tx.commit()?;
@@ -378,7 +451,7 @@ impl Store {
     /// conservées dans la base pour la compatibilité des sauvegardes, mais ne sont plus lues.
     pub fn positions(&self) -> Result<Vec<Position>, StoreError> {
         let mut st = self.conn.prepare(
-            "SELECT id, isin, symbole, nom, quantite_micro, pru_micro, pays FROM positions WHERE enveloppe = 'PEA' ORDER BY nom, id",
+            "SELECT id, isin, symbole, nom, quantite_micro, pru_micro, pays, journal FROM positions WHERE enveloppe = 'PEA' ORDER BY nom, id",
         )?;
         let rows = st.query_map([], |r| {
             Ok(Position {
@@ -389,6 +462,7 @@ impl Store {
                 quantite_micro: r.get(4)?,
                 pru_micro: r.get(5)?,
                 pays: r.get(6)?,
+                journal: r.get::<_, i64>(7)? != 0,
             })
         })?;
         Ok(rows.collect::<Result<_, _>>()?)
@@ -396,8 +470,9 @@ impl Store {
 
     pub fn ajouter_position(&self, p: &Position) -> Result<i64, StoreError> {
         self.conn.execute(
-            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise) VALUES ('PEA', ?1, ?2, ?3, ?4, ?5, ?6, 'EUR')",
-            params![p.isin, p.symbole, p.nom, p.quantite_micro, p.pru_micro, p.pays],
+            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise, journal)
+             VALUES ('PEA', ?1, ?2, ?3, ?4, ?5, ?6, 'EUR', ?7)",
+            params![p.isin, p.symbole, p.nom, p.quantite_micro, p.pru_micro, p.pays, p.journal as i64],
         )?;
         Ok(self.conn.last_insert_rowid())
     }
@@ -487,6 +562,271 @@ impl Store {
         Ok(())
     }
 
+    /// Paramètres dont la clé commence par `prefixe`, triés par clé.
+    pub fn parametres(&self, prefixe: &str) -> Result<Vec<(String, String)>, StoreError> {
+        let mut st = self
+            .conn
+            .prepare("SELECT cle, valeur FROM parametres WHERE substr(cle, 1, length(?1)) = ?1 ORDER BY cle")?;
+        let rows = st.query_map([prefixe], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn supprimer_parametre(&self, cle: &str) -> Result<(), StoreError> {
+        self.conn.execute("DELETE FROM parametres WHERE cle = ?1", [cle])?;
+        Ok(())
+    }
+
+    // ---------- Import CSV ----------
+
+    /// Applique un import en une seule transaction : tout ou rien. Rend le numéro de l'import.
+    pub fn importer(&mut self, plan: &PlanImport) -> Result<i64, StoreError> {
+        let tx = self.conn.transaction()?;
+        tx.execute("INSERT INTO imports (fichier, lignes) VALUES (?1, ?2)", params![plan.fichier, plan.lignes])?;
+        let import_id = tx.last_insert_rowid();
+        let mut crees = Vec::new();
+        for c in &plan.comptes {
+            let existe: i64 =
+                tx.query_row("SELECT count(*) FROM comptes WHERE type = ?1 AND cloture IS NULL", [&c.type_], |r| {
+                    r.get(0)
+                })?;
+            if existe == 0 {
+                tx.execute(
+                    "INSERT INTO comptes (nom, type, etablissement, produit, ouverture) VALUES (?1, ?2, '', NULL, ?3)",
+                    params![c.nom, c.type_, c.ouverture],
+                )?;
+                crees.push(tx.last_insert_rowid().to_string());
+            }
+        }
+        tx.execute("UPDATE imports SET comptes_crees = ?2 WHERE id = ?1", params![import_id, crees.join(",")])?;
+        for (type_compte, o) in &plan.operations {
+            let compte_id: i64 = tx.query_row(
+                "SELECT id FROM comptes WHERE type = ?1 AND cloture IS NULL ORDER BY id LIMIT 1",
+                [type_compte],
+                |r| r.get(0),
+            )?;
+            tx.execute(
+                "INSERT INTO operations (compte_id, date, type, montant_cents, isin, quantite_micro, cours_micro, frais_cents, libelle, import_id)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                params![
+                    compte_id,
+                    o.date,
+                    o.type_,
+                    o.montant_cents,
+                    o.isin,
+                    o.quantite_micro,
+                    o.cours_micro,
+                    o.frais_cents,
+                    o.libelle,
+                    import_id
+                ],
+            )?;
+        }
+        for l in &plan.lignes_pea {
+            // Les lignes saisies à la main pour ce titre sont mises de côté (restaurées si l'import est annulé).
+            let pays: Option<String> = tx
+                .query_row(
+                    "SELECT pays FROM positions WHERE isin = ?1 AND pays IS NOT NULL ORDER BY journal DESC, id LIMIT 1",
+                    [&l.isin],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            tx.execute(
+                "INSERT INTO imports_positions (import_id, isin, symbole, nom, quantite_micro, pru_micro, pays)
+                 SELECT ?1, isin, symbole, nom, quantite_micro, pru_micro, pays FROM positions WHERE isin = ?2 AND journal = 0",
+                params![import_id, l.isin],
+            )?;
+            let ancien: Option<(String, String)> = tx
+                .query_row(
+                    "SELECT symbole, nom FROM positions WHERE isin = ?1 ORDER BY journal DESC, id LIMIT 1",
+                    [&l.isin],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )
+                .optional()?;
+            ecrire_ligne_journal(&tx, l, ancien, pays)?;
+        }
+        tx.commit()?;
+        Ok(import_id)
+    }
+
+    pub fn imports(&self) -> Result<Vec<ImportEnregistre>, StoreError> {
+        let mut st = self.conn.prepare(
+            "SELECT i.id, i.date, i.fichier, i.lignes, (SELECT count(*) FROM operations o WHERE o.import_id = i.id), i.genre
+             FROM imports i ORDER BY i.id DESC",
+        )?;
+        let rows = st.query_map([], |r| {
+            Ok(ImportEnregistre {
+                id: r.get(0)?,
+                date: r.get(1)?,
+                fichier: r.get(2)?,
+                lignes: r.get(3)?,
+                operations: r.get(4)?,
+                genre: r.get(5)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    pub fn genre_import(&self, import_id: i64) -> Result<String, StoreError> {
+        Ok(self.conn.query_row("SELECT genre FROM imports WHERE id = ?1", [import_id], |r| r.get(0))?)
+    }
+
+    /// Applique l'import d'une photo du portefeuille en une transaction : lignes mises à jour (les anciennes,
+    /// identifiées, sont remplacées), nouvelles lignes, lignes supprimées. Rend le numéro de l'import.
+    pub fn importer_positions(
+        &mut self,
+        fichier: &str,
+        mises_a_jour: &[(Vec<i64>, Position)],
+        nouvelles: &[Position],
+        supprimees: &[i64],
+    ) -> Result<i64, StoreError> {
+        let tx = self.conn.transaction()?;
+        let lignes = (mises_a_jour.len() + nouvelles.len() + supprimees.len()) as i64;
+        tx.execute(
+            "INSERT INTO imports (fichier, lignes, genre) VALUES (?1, ?2, 'POSITIONS')",
+            params![fichier, lignes],
+        )?;
+        let import_id = tx.last_insert_rowid();
+        let garder = |id: i64| -> Result<(), StoreError> {
+            tx.execute(
+                "INSERT INTO imports_positions (import_id, isin, symbole, nom, quantite_micro, pru_micro, pays)
+                 SELECT ?1, isin, symbole, nom, quantite_micro, pru_micro, pays FROM positions WHERE id = ?2 AND journal = 0",
+                params![import_id, id],
+            )?;
+            tx.execute("DELETE FROM positions WHERE id = ?1 AND journal = 0", [id])?;
+            Ok(())
+        };
+        for id in supprimees {
+            garder(*id)?;
+        }
+        for (anciennes, p) in
+            mises_a_jour.iter().map(|(a, p)| (a.as_slice(), p)).chain(nouvelles.iter().map(|p| (&[][..], p)))
+        {
+            for id in anciennes {
+                garder(*id)?;
+            }
+            // Marque de la ligne écrite (quantité 0) : supprimée si l'import est annulé.
+            tx.execute(
+                "INSERT INTO imports_positions (import_id, isin, symbole, nom, quantite_micro, pru_micro, pays)
+                 VALUES (?1, ?2, ?3, ?4, 0, 0, NULL)",
+                params![import_id, p.isin, p.symbole, p.nom],
+            )?;
+            tx.execute(
+                "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise, journal)
+                 VALUES ('PEA', ?1, ?2, ?3, ?4, ?5, ?6, 'EUR', 0)",
+                params![p.isin, p.symbole, p.nom, p.quantite_micro, p.pru_micro, p.pays],
+            )?;
+        }
+        tx.commit()?;
+        Ok(import_id)
+    }
+
+    /// Annule l'import d'une photo : les lignes écrites sont retirées, les lignes remplacées ou supprimées
+    /// sont remises telles qu'elles étaient.
+    pub fn annuler_import_positions(&mut self, import_id: i64) -> Result<(), StoreError> {
+        let tx = self.conn.transaction()?;
+        tx.execute(
+            "DELETE FROM positions WHERE journal = 0 AND symbole IN
+                 (SELECT symbole FROM imports_positions WHERE import_id = ?1 AND quantite_micro = 0)",
+            [import_id],
+        )?;
+        tx.execute(
+            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise, journal)
+             SELECT 'PEA', isin, symbole, nom, quantite_micro, pru_micro, pays, 'EUR', 0
+             FROM imports_positions WHERE import_id = ?1 AND quantite_micro > 0",
+            [import_id],
+        )?;
+        tx.execute("DELETE FROM imports WHERE id = ?1", [import_id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Identifiants des opérations d'un import.
+    pub fn operations_import(&self, import_id: i64) -> Result<Vec<i64>, StoreError> {
+        let mut st = self.conn.prepare("SELECT id FROM operations WHERE import_id = ?1")?;
+        let rows = st.query_map([import_id], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// ISIN des lignes du PEA touchées par un import (achats, ventes ou ligne manuelle remplacée).
+    pub fn isins_import(&self, import_id: i64) -> Result<Vec<String>, StoreError> {
+        let mut st = self.conn.prepare(
+            "SELECT isin FROM operations WHERE import_id = ?1 AND type IN ('ACHAT', 'VENTE') AND isin IS NOT NULL
+             UNION SELECT isin FROM imports_positions WHERE import_id = ?1 AND isin IS NOT NULL ORDER BY 1",
+        )?;
+        let rows = st.query_map([import_id], |r| r.get(0))?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Annule un import : supprime ses opérations, écrit l'état recalculé des lignes du PEA touchées
+    /// (calculé sans les opérations de l'import), restaure les lignes saisies à la main qu'il avait remplacées
+    /// quand il ne reste aucun achat ni vente du titre, et referme les comptes qu'il avait ouverts s'ils sont vides.
+    pub fn annuler_import(&mut self, import_id: i64, lignes_pea: &[LignePeaCalculee]) -> Result<(), StoreError> {
+        let tx = self.conn.transaction()?;
+        let crees: String =
+            tx.query_row("SELECT comptes_crees FROM imports WHERE id = ?1", [import_id], |r| r.get(0))?;
+        tx.execute("DELETE FROM operations WHERE import_id = ?1", [import_id])?;
+        for l in lignes_pea {
+            let historique: i64 = tx.query_row(
+                "SELECT count(*) FROM operations o JOIN comptes c ON c.id = o.compte_id
+                 WHERE c.type = 'PEA' AND o.isin = ?1 AND o.type IN ('ACHAT', 'VENTE')",
+                [&l.isin],
+                |r| r.get(0),
+            )?;
+            if historique > 0 {
+                let ancien: Option<(String, String)> = tx
+                    .query_row(
+                        "SELECT symbole, nom FROM positions WHERE isin = ?1 ORDER BY journal DESC, id LIMIT 1",
+                        [&l.isin],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                    .optional()?;
+                let pays: Option<String> = tx
+                    .query_row(
+                        "SELECT pays FROM positions WHERE isin = ?1 AND pays IS NOT NULL ORDER BY journal DESC, id LIMIT 1",
+                        [&l.isin],
+                        |r| r.get(0),
+                    )
+                    .optional()?;
+                ecrire_ligne_journal(&tx, l, ancien, pays)?;
+            } else {
+                tx.execute("DELETE FROM positions WHERE isin = ?1 AND journal = 1", [&l.isin])?;
+                tx.execute(
+                    "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise, journal)
+                     SELECT 'PEA', isin, symbole, nom, quantite_micro, pru_micro, pays, 'EUR', 0
+                     FROM imports_positions WHERE import_id = ?1 AND isin = ?2",
+                    params![import_id, l.isin],
+                )?;
+            }
+        }
+        for id in crees.split(',').filter_map(|s| s.trim().parse::<i64>().ok()) {
+            tx.execute(
+                "DELETE FROM comptes WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM operations WHERE compte_id = ?1)",
+                [id],
+            )?;
+        }
+        tx.execute("DELETE FROM imports WHERE id = ?1", [import_id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Supprime une ligne du PEA calculée par le journal, avec les achats et ventes de ce titre.
+    pub fn supprimer_ligne_journal(&mut self, id: i64) -> Result<(), StoreError> {
+        let tx = self.conn.transaction()?;
+        let isin: Option<String> =
+            tx.query_row("SELECT isin FROM positions WHERE id = ?1", [id], |r| r.get(0)).optional()?.flatten();
+        if let Some(isin) = isin {
+            tx.execute(
+                "DELETE FROM operations WHERE isin = ?1 AND type IN ('ACHAT', 'VENTE')
+                 AND compte_id IN (SELECT id FROM comptes WHERE type = 'PEA')",
+                [&isin],
+            )?;
+            tx.execute("DELETE FROM positions WHERE isin = ?1 AND journal = 1", [&isin])?;
+        }
+        tx.execute("DELETE FROM positions WHERE id = ?1", [id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn parametre(&self, cle: &str) -> Result<Option<String>, StoreError> {
         Ok(self.conn.query_row("SELECT valeur FROM parametres WHERE cle = ?1", [cle], |r| r.get(0)).optional()?)
     }
@@ -498,6 +838,25 @@ impl Store {
         )?;
         Ok(())
     }
+}
+
+/// Remplace les lignes d'un titre par la ligne calculée (aucune si elle est soldée).
+fn ecrire_ligne_journal(
+    tx: &rusqlite::Transaction<'_>,
+    l: &LignePeaCalculee,
+    ancien: Option<(String, String)>,
+    pays: Option<String>,
+) -> Result<(), StoreError> {
+    tx.execute("DELETE FROM positions WHERE isin = ?1", [&l.isin])?;
+    if l.quantite_micro > 0 {
+        let (symbole, nom) = ancien.unwrap_or_else(|| (l.symbole.clone(), l.nom.clone()));
+        tx.execute(
+            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise, journal)
+             VALUES ('PEA', ?1, ?2, ?3, ?4, ?5, ?6, 'EUR', 1)",
+            params![l.isin, symbole, nom, l.quantite_micro, l.pru_micro, pays],
+        )?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -545,6 +904,7 @@ mod tests {
                 quantite_micro: 100_000_000,
                 pru_micro: 5_500_000,
                 pays: None,
+                journal: false,
             })
             .unwrap();
         s.modifier_position(pid, 150_000_000, 5_600_000, Some("FR")).unwrap();

@@ -23,8 +23,9 @@
 - **Courbes et analyse technique** : ligne, chandeliers japonais, barres, Heikin Ashi, en journalier ou hebdomadaire ; volumes, moyennes mobiles, Bollinger, RSI, MACD, supports et résistances ; signaux expliqués en clair (cassures, figures, motifs de chandeliers, structure de tendance, confirmation hebdomadaire).
 - **Alertes** : détachements de dividendes et assemblées générales des 45 prochains jours.
 - **Tableau de bord** avec répartition de l'épargne et dividendes nets annuels.
+- **Import** (0.4) depuis la page PEA : exports Moning, BoursoBank, Fortuneo, classeurs Excel ou historique d'opérations, reconnus automatiquement ; aperçu, import en un clic, annulation.
 - **Exports** en CSV (Excel) et en image PNG.
-- **Sauvegarde, restauration**, effacement des données, et avis de nouvelle version au démarrage.
+- **Sauvegarde chiffrée** par mot de passe, restauration, effacement des données, et avis de nouvelle version (désactivé par défaut).
 
 ## Captures d'écran
 
@@ -73,8 +74,8 @@ docs/                     Documentation
 
 ```sh
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
-cargo test                       # cœur de calcul : 91 tests, sans réseau
-cd app/src-tauri && cargo test   # application : 23 tests (sauvegarde chiffrée, livrets, base, migration, cours, versions)
+cargo test                       # cœur de calcul : 124 tests, sans réseau
+cd app/src-tauri && cargo test   # application : 39 tests (import, sauvegarde chiffrée, livrets, base, migration, cours, versions)
 cd .. && npm install && npm run tauri dev
 ```
 
