@@ -5,7 +5,7 @@ use escarcelle_core::conseil_livret::{
     conseil_retrait, conseil_versement, repartir_retrait, repartir_versement, LivretDetenu,
 };
 use escarcelle_core::livret::{
-    controler, debut_quinzaine, interets_maximum, simuler, AnneeLivret, Anomalie, Mouvement, Sens,
+    controler, debut_quinzaine, interets_maximum, normaliser, simuler, AnneeLivret, Anomalie, Mouvement, Sens,
 };
 use escarcelle_core::params::{embarque, LivretParams};
 use escarcelle_core::{Date, Money};
@@ -88,30 +88,16 @@ pub fn valoriser(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money,
 /// Solde au jour et intérêts année par année (opérations datées jusqu'au jour inclus).
 pub fn simulation(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money, Vec<AnneeLivret>)> {
     let taux = params(type_).taux;
-    let mut mvts = Vec::new();
-    let mut net = Money::ZERO;
-    for o in ops {
-        let d: Date = o.date.parse().map_err(err)?;
-        if d > jour {
-            continue;
-        }
-        let m = Money::from_cents(o.montant_cents.unwrap_or(0));
-        match o.type_.as_str() {
-            "VERSEMENT" => {
-                mvts.push(Mouvement::depot(d, m));
-                net += m;
-            }
-            "RETRAIT" => {
-                mvts.push(Mouvement::retrait(d, m));
-                net -= m;
-            }
-            "VALORISATION" => {
-                mvts.push(Mouvement::depart(d, m));
-                net += m;
-            }
-            _ => {}
-        }
-    }
+    let mvts: Vec<Mouvement> = mouvements(ops)?.into_iter().map(|(_, m)| m).filter(|m| m.date <= jour).collect();
+    // Même historique normalisé que le calcul des intérêts : le solde de départ de référence et les mouvements
+    // datés à partir de lui ; les mouvements antérieurs et les soldes de départ en trop ne comptent pas.
+    let net: Money = normaliser(&mvts)
+        .into_iter()
+        .map(|i| match mvts[i].sens {
+            Sens::Retrait => -mvts[i].montant,
+            Sens::Depot | Sens::Depart => mvts[i].montant,
+        })
+        .sum();
     let annees = simuler(&mvts, &taux, jour.year()).map_err(err)?;
     let capitalises: Money = annees.iter().filter(|a| a.annee < jour.year()).map(|a| a.interets).sum();
     Ok((net + capitalises, annees))
@@ -429,5 +415,20 @@ mod tests {
         // Taux moyens : 2025 = (2 × 3 + 12 × 2,4 + 10 × 1,7) / 24 ≈ 2,16 % ; 2026 = (12 × 1,7 + 12 × 1,5) / 24 = 1,60 %.
         assert_eq!(taux_moyen("LIVRET_A", 2026), 16_000);
         assert_eq!(taux_moyen("LIVRET_A", 2025), (2 * 30_000 + 12 * 24_000 + 10 * 17_000 + 12) / 24);
+    }
+
+    /// Une base qui contient déjà un versement antérieur au solde de départ (saisi avant la 0.3, ou restauré) :
+    /// il n'entre ni dans le solde ni dans les intérêts.
+    #[test]
+    fn solde_sur_l_historique_normalise() {
+        let ops = vec![
+            op(1, "2024-05-01", "VERSEMENT", 3_000),
+            op(2, "2026-01-01", "VALORISATION", 10_000),
+            op(3, "2026-03-03", "VERSEMENT", 500),
+        ];
+        let (solde, annees) = simulation("LDDS", &ops, "2026-11-25".parse().unwrap()).unwrap();
+        assert_eq!(solde, Money::from_euros(10_500));
+        assert_eq!(annees.len(), 1);
+        assert_eq!(annees[0].annee, 2026);
     }
 }

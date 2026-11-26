@@ -97,9 +97,30 @@ pub fn debut_quinzaine(annee: i32, q: u8) -> Date {
 }
 
 /// Calcule les intérêts année par année, de la première année concernée jusqu'à `jusqu_a`.
+/// Solde de départ qui fait foi : le plus ancien. À date égale, le plus petit montant, pour que le choix ne
+/// dépende jamais de l'ordre de la liste.
+pub fn depart_de_reference(mouvements: &[Mouvement]) -> Option<usize> {
+    (0..mouvements.len())
+        .filter(|&i| mouvements[i].sens == Sens::Depart)
+        .min_by_key(|&i| (mouvements[i].date, mouvements[i].montant.cents(), i))
+}
+
+/// Historique normalisé : indices des mouvements retenus pour le calcul, dans l'ordre de la liste.
+/// S'il y a un solde de départ, celui qui fait foi est gardé ; les mouvements datés avant lui et les autres
+/// soldes de départ sont écartés, car déjà compris dans ce solde. Sans solde de départ, tout est gardé.
+pub fn normaliser(mouvements: &[Mouvement]) -> Vec<usize> {
+    match depart_de_reference(mouvements) {
+        None => (0..mouvements.len()).collect(),
+        Some(d) => (0..mouvements.len())
+            .filter(|&i| i == d || (mouvements[i].sens != Sens::Depart && mouvements[i].date >= mouvements[d].date))
+            .collect(),
+    }
+}
+
+/// Intérêts année par année, sur l'historique normalisé (voir [`normaliser`]).
 pub fn simuler(mouvements: &[Mouvement], taux: &Series<Rate>, jusqu_a: i32) -> Result<Vec<AnneeLivret>, LivretError> {
     let mut effets: BTreeMap<(i32, u8), i64> = BTreeMap::new();
-    for m in mouvements {
+    for m in normaliser(mouvements).into_iter().map(|i| &mouvements[i]) {
         if m.montant.cents() <= 0 {
             return Err(LivretError::MontantInvalide(*m));
         }
@@ -193,7 +214,8 @@ pub fn controler(
     taux: &Series<Rate>,
     plafond: Money,
 ) -> Result<Vec<(usize, Anomalie)>, LivretError> {
-    let mut ordre: Vec<usize> = (0..mouvements.len()).collect();
+    // Seul l'historique normalisé compte pour les soldes ; les mouvements écartés sont signalés plus bas.
+    let mut ordre = normaliser(mouvements);
     ordre.sort_by_key(|&i| mouvements[i].date); // tri stable : ordre de saisie conservé pour un même jour
     let derniere = match ordre.last() {
         Some(&i) => mouvements[i].date.year(),
@@ -205,9 +227,8 @@ pub fn controler(
         simuler(mouvements, taux, derniere)?.into_iter().map(|a| (a.annee, a.interets.cents())).collect();
 
     let mut anomalies = Vec::new();
-    // Le premier solde de départ saisi fait foi ; les autres sont en double.
-    let depart = mouvements.iter().position(|m| m.sens == Sens::Depart);
-    if let Some(d) = depart {
+    // Le solde de départ de référence fait foi ; les autres sont en double.
+    if let Some(d) = depart_de_reference(mouvements) {
         for (i, m) in mouvements.iter().enumerate() {
             if i == d {
                 continue;
@@ -425,5 +446,37 @@ mod tests {
         assert_eq!(quinzaine_effet(Date::ymd(2026, 3, 16), Sens::Depart), (2026, 6));
         assert_eq!(quinzaine_effet(Date::ymd(2026, 3, 10), Sens::Depart), (2026, 6));
         assert_eq!(quinzaine_effet(Date::ymd(2025, 12, 31), Sens::Depart), (2026, 1));
+    }
+
+    /// L'ordre de la liste ne change ni le solde de départ retenu ni les intérêts, et les mouvements écartés
+    /// (antérieurs au départ, soldes de départ supplémentaires) ne comptent pas dans le calcul.
+    #[test]
+    fn historique_normalise_independant_de_l_ordre() {
+        let t = taux_fixe(2);
+        let m = vec![
+            Mouvement::depot(Date::ymd(2024, 3, 1), Money::from_euros(5_000)), // avant le départ : écarté
+            Mouvement::depart(Date::ymd(2025, 6, 1), Money::from_euros(7_000)), // départ tardif : écarté
+            Mouvement::depart(Date::ymd(2025, 1, 1), Money::from_euros(10_000)), // le plus ancien : fait foi
+            Mouvement::depot(Date::ymd(2025, 3, 3), Money::from_euros(1_000)),
+        ];
+        assert_eq!(depart_de_reference(&m), Some(2));
+        assert_eq!(normaliser(&m), vec![2, 3]);
+        let seul = vec![m[2], m[3]];
+        let reference = simuler(&seul, &t, 2026).unwrap();
+        assert_eq!(simuler(&m, &t, 2026).unwrap(), reference);
+        let mut inverse = m.clone();
+        inverse.reverse();
+        assert_eq!(simuler(&inverse, &t, 2026).unwrap(), reference);
+        // Les anomalies désignent les mêmes mouvements, quel que soit l'ordre.
+        let a = controler(&m, &t, Money::from_euros(22_950)).unwrap();
+        assert_eq!(
+            a,
+            vec![(0, Anomalie::AvantSoldeDepart { depart: Date::ymd(2025, 1, 1) }), (1, Anomalie::SoldeDepartEnDouble)]
+        );
+        let b = controler(&inverse, &t, Money::from_euros(22_950)).unwrap();
+        assert_eq!(
+            b,
+            vec![(2, Anomalie::SoldeDepartEnDouble), (3, Anomalie::AvantSoldeDepart { depart: Date::ymd(2025, 1, 1) })]
+        );
     }
 }
