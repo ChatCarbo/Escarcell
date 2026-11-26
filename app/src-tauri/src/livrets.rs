@@ -4,7 +4,7 @@
 use escarcelle_core::conseil_livret::{
     conseil_retrait, conseil_versement, repartir_retrait, repartir_versement, LivretDetenu,
 };
-use escarcelle_core::livret::{controler, simuler, Anomalie, Mouvement, Sens};
+use escarcelle_core::livret::{controler, debut_quinzaine, simuler, AnneeLivret, Anomalie, Mouvement, Sens};
 use escarcelle_core::params::{embarque, LivretParams};
 use escarcelle_core::{Date, Money};
 use serde::Serialize;
@@ -49,11 +49,40 @@ pub struct LivretDto {
     pub plafond_cents: i64,
     pub taux_micro: i64,
     pub interets_estimes_cents: i64,
+    /// Intérêts capitalisés depuis la première opération, plus ceux estimés de l'année en cours.
+    pub interets_cumules_cents: i64,
+    /// Détail année par année, de la première année concernée à l'année en cours.
+    pub annees: Vec<AnneeDto>,
     pub operations: Vec<OperationDto>,
+}
+
+#[derive(Serialize)]
+pub struct AnneeDto {
+    pub annee: i32,
+    /// Moyenne des taux des 24 quinzaines de l'année (chaque quinzaine est payée au taux de son premier jour).
+    pub taux_moyen_micro: i64,
+    pub interets_cents: i64,
+    /// Solde au 31 décembre, intérêts compris (pour l'année en cours : estimation sans autre virement).
+    pub solde_fin_cents: i64,
+    pub en_cours: bool,
+}
+
+/// Taux moyen d'une année : moyenne des taux en vigueur au premier jour de chaque quinzaine.
+fn taux_moyen(type_: &str, annee: i32) -> i64 {
+    let taux = params(type_).taux;
+    let somme: i64 = (1..=24u8).map(|q| taux.at(debut_quinzaine(annee, q)).map(|t| t.micro()).unwrap_or(0)).sum();
+    (somme + 12) / 24
 }
 
 /// Solde au jour (versements − retraits + intérêts capitalisés) et intérêts estimés de l'année.
 pub fn valoriser(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money, Money)> {
+    let (solde, annees) = simulation(type_, ops, jour)?;
+    let estimes = annees.iter().find(|a| a.annee == jour.year()).map(|a| a.interets).unwrap_or(Money::ZERO);
+    Ok((solde, estimes))
+}
+
+/// Solde au jour et intérêts année par année (opérations datées jusqu'au jour inclus).
+pub fn simulation(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money, Vec<AnneeLivret>)> {
     let taux = params(type_).taux;
     let mut mvts = Vec::new();
     let mut net = Money::ZERO;
@@ -81,8 +110,7 @@ pub fn valoriser(type_: &str, ops: &[Operation], jour: Date) -> Resultat<(Money,
     }
     let annees = simuler(&mvts, &taux, jour.year()).map_err(err)?;
     let capitalises: Money = annees.iter().filter(|a| a.annee < jour.year()).map(|a| a.interets).sum();
-    let estimes = annees.iter().find(|a| a.annee == jour.year()).map(|a| a.interets).unwrap_or(Money::ZERO);
-    Ok((net + capitalises, estimes))
+    Ok((net + capitalises, annees))
 }
 
 fn date_fr(d: Date) -> String {
@@ -165,14 +193,15 @@ pub fn tous(etat: &Etat) -> Resultat<Vec<LivretDto>> {
         let p = params(t);
         let taux = p.taux.at(jour).copied().unwrap_or_default();
         let compte = comptes.iter().find(|c| c.type_ == t);
-        let (ops, solde, interets) = match compte {
+        let (ops, solde, annees) = match compte {
             Some(c) => {
                 let ops = db.operations(c.id).map_err(err)?;
-                let (s, i) = valoriser(t, &ops, jour)?;
-                (ops, s, i)
+                let (s, a) = simulation(t, &ops, jour)?;
+                (ops, s, a)
             }
-            None => (Vec::new(), Money::ZERO, Money::ZERO),
+            None => (Vec::new(), Money::ZERO, Vec::new()),
         };
+        let interets = annees.iter().find(|a| a.annee == jour.year()).map(|a| a.interets).unwrap_or(Money::ZERO);
         res.push(LivretDto {
             type_: t.into(),
             nom: nom.into(),
@@ -181,6 +210,17 @@ pub fn tous(etat: &Etat) -> Resultat<Vec<LivretDto>> {
             plafond_cents: p.plafond.cents(),
             taux_micro: taux.micro(),
             interets_estimes_cents: interets.cents(),
+            interets_cumules_cents: annees.iter().map(|a| a.interets.cents()).sum(),
+            annees: annees
+                .iter()
+                .map(|a| AnneeDto {
+                    annee: a.annee,
+                    taux_moyen_micro: taux_moyen(t, a.annee),
+                    interets_cents: a.interets.cents(),
+                    solde_fin_cents: a.solde_fin.cents(),
+                    en_cours: a.annee == jour.year(),
+                })
+                .collect(),
             operations: ops
                 .into_iter()
                 .filter(|o| ["VERSEMENT", "RETRAIT", "VALORISATION"].contains(&o.type_.as_str()))
@@ -369,5 +409,20 @@ mod tests {
         apres.push(op(0, "2026-03-01", "VALORISATION", 100));
         let e = verifier_modification("LIVRET_A", &avant, &apres, true).unwrap_err();
         assert!(e.contains("déjà un solde de départ"), "{e}");
+    }
+
+    /// Cas signalé : 22 950 € versés le 01/01/2025. 2025 : 466,65 € (taux de 3 %, 2,40 % puis 1,70 %) ;
+    /// 2026 : 374,67 € estimés sur 23 416,65 € (1,70 %, 1,50 % puis 1,70 %) ; cumul 841,32 €.
+    #[test]
+    fn interets_annee_par_annee_avec_les_taux_de_chaque_annee() {
+        let ops = vec![op(1, "2025-01-01", "VERSEMENT", 22_950)];
+        let (solde, annees) = simulation("LIVRET_A", &ops, "2026-11-25".parse().unwrap()).unwrap();
+        assert_eq!(solde, Money::from_cents(23_416_65));
+        assert_eq!(annees[0].interets, Money::from_cents(466_65));
+        assert_eq!(annees[1].interets, Money::from_cents(374_67));
+        assert_eq!(annees.iter().map(|a| a.interets.cents()).sum::<i64>(), 84_132);
+        // Taux moyens : 2025 = (2 × 3 + 12 × 2,4 + 10 × 1,7) / 24 ≈ 2,16 % ; 2026 = (12 × 1,7 + 12 × 1,5) / 24 = 1,60 %.
+        assert_eq!(taux_moyen("LIVRET_A", 2026), 16_000);
+        assert_eq!(taux_moyen("LIVRET_A", 2025), (2 * 30_000 + 12 * 24_000 + 10 * 17_000 + 12) / 24);
     }
 }

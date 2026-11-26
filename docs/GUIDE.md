@@ -82,7 +82,7 @@ Escarcelle refuse un versement qui dépasserait le plafond (22 950 € pour le L
 
 ### Ce que vous voyez
 
-Chaque carte affiche le **solde**, une **jauge** de remplissage du plafond et les **intérêts estimés** de l'année. Les intérêts sont ajoutés au solde chaque 31 décembre, comme le fait votre banque.
+Chaque carte affiche le **solde**, une **jauge** de remplissage du plafond, les **intérêts estimés** de l'année et les **intérêts cumulés** depuis votre première opération. **Détail par année** déplie, pour chaque année, le taux moyen appliqué, les intérêts et le solde au 31 décembre. Les intérêts sont ajoutés au solde chaque 31 décembre, comme le fait votre banque.
 
 ### Où verser, où retirer ?
 

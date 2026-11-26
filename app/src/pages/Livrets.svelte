@@ -152,6 +152,26 @@
         <strong class="solde">{euros(l.solde_cents)}</strong>
         <div class="jauge"><div style="width:{Math.min(100, (l.solde_cents / l.plafond_cents) * 100)}%"></div></div>
         <span class="discret petit">{euros(l.solde_cents)} / {euros(l.plafond_cents)} · intérêts {new Date().getFullYear()} : {euros(l.interets_estimes_cents)}</span>
+        {#if l.annees.length}
+          <span class="petit">Intérêts cumulés depuis {l.annees[0].annee} : <b class="positif">{euros(l.interets_cumules_cents)}</b></span>
+          <details class="petit">
+            <summary>Détail par année</summary>
+            <table>
+              <thead><tr><th>Année</th><th class="nombre">Taux moyen</th><th class="nombre">Intérêts</th><th class="nombre">Solde au 31/12</th></tr></thead>
+              <tbody>
+                {#each l.annees as a (a.annee)}
+                  <tr>
+                    <td>{a.annee}{a.en_cours ? ' (estimé)' : ''}</td>
+                    <td class="nombre">{pct(a.taux_moyen_micro)}</td>
+                    <td class="nombre">{euros(a.interets_cents)}</td>
+                    <td class="nombre">{euros(a.solde_fin_cents)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+            <p class="discret">Chaque quinzaine est payée au taux en vigueur à son premier jour ; l'année en cours suppose qu'aucun autre virement n'aura lieu.</p>
+          </details>
+        {/if}
       {/if}
     </section>
   {/each}
