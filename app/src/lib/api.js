@@ -42,8 +42,6 @@ export const api = {
     invoke('analyser_import', { chemin, correspondance: correspondance ?? null, inclureDoublons: !!inclureDoublons }),
   importer: (chemin, correspondance, inclureDoublons) =>
     invoke('importer', { chemin, correspondance: correspondance ?? null, inclureDoublons: !!inclureDoublons }),
-  imports: () => invoke('imports'),
-  annulerImport: (id) => invoke('annuler_import', { id }),
   correspondances: () => invoke('correspondances'),
   enregistrerCorrespondance: (nom, colonnes) => invoke('enregistrer_correspondance', { nom, colonnes }),
   supprimerCorrespondance: (nom) => invoke('supprimer_correspondance', { nom }),

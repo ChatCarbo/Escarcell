@@ -253,5 +253,3 @@ table.decomposition tr.total td { font-weight: 600; border-top: 2px solid var(--
 .apercu-import .badge { margin-left: 0; }
 .import-pea p { margin: 8px 0; }
 .absentes-import { max-width: 760px; margin-top: 8px; }
-details.carte > summary { cursor: pointer; list-style-position: inside; }
-h3.resume { display: inline; margin: 0; }

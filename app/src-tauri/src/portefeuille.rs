@@ -89,6 +89,9 @@ pub struct LigneDto {
     pub div_frequence: usize,
     pub div_rendement_micro: Option<i64>,
     pub div_croissance_micro: Option<i64>,
+    /// Années civiles comparées pour la croissance du dividende.
+    pub div_croissance_debut: Option<i32>,
+    pub div_croissance_fin: Option<i32>,
     pub div_prochain_estime: Option<String>,
     pub div_dernier_date: Option<String>,
     pub div_dernier_micro: Option<i64>,
@@ -172,6 +175,8 @@ fn ligne(db: &Store, p: Position, jour: Date) -> Resultat<LigneDto> {
             .and_then(|c| div::rendement(syn.annuel_par_action, Price::from_micro(c)))
             .map(|r| r.micro()),
         div_croissance_micro: syn.croissance_annuelle.map(|r| r.micro()),
+        div_croissance_debut: syn.croissance_periode.map(|p| p.0),
+        div_croissance_fin: syn.croissance_periode.map(|p| p.1),
         div_prochain_estime: syn.prochain_estime.map(|d| d.to_string()),
         div_dernier_date: syn.dernier.map(|v| v.date.to_string()),
         div_dernier_micro: syn.dernier.map(|v| v.montant.micro()),
@@ -337,7 +342,7 @@ pub fn modifier_position(
         // Ligne calculée par le journal : seul le pays se modifie, la quantité et le PRU viennent des opérations.
         if p.journal && (p.quantite_micro != quantite_micro || p.pru_micro != pru_micro) {
             return Err("Cette ligne est calculée à partir des opérations importées : sa quantité et son PRU \
-                        changent par un nouvel import ou l'annulation d'un import."
+                        changent par un nouvel import d'opérations."
                 .into());
         }
         db.modifier_position(id, quantite_micro, pru_micro, code_pays(pays).as_deref()).map_err(err)?;

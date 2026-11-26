@@ -88,5 +88,5 @@
     </button>
     <button onclick={fermer}>Annuler</button>
   </div>
-  <p class="discret petit">Une copie de sécurité de vos données est faite juste avant ; l'import peut ensuite être annulé (« Imports précédents », en bas de la page).</p>
+  <p class="discret petit">Une copie de sécurité de vos données est faite juste avant l'import : en cas de besoin, elle se restaure dans Paramètres.</p>
 </section>

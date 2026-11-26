@@ -95,7 +95,6 @@ pub struct FichierDto {
 /// Écritures d'un import de photo, appliquées en une transaction.
 #[derive(Clone, Debug, Default)]
 pub struct PlanPositions {
-    pub fichier: String,
     /// Lignes existantes remplacées (identifiants) par une ligne mise à jour.
     pub mises_a_jour: Vec<(Vec<i64>, Position)>,
     pub nouvelles: Vec<Position>,
@@ -207,7 +206,7 @@ pub fn planifier(
         absentes: Vec::new(),
         compteurs: CompteursPositions::default(),
     };
-    let mut plan = PlanPositions { fichier: fichier.into(), ..Default::default() };
+    let mut plan = PlanPositions::default();
     let mut touchees: Vec<i64> = Vec::new();
     for (numero, p, mut messages, erreur) in ordre {
         let Some(p) = p else {
@@ -438,14 +437,13 @@ pub async fn analyser_fichier(etat: State<'_, Etat>, chemin: String) -> Resultat
 
 #[derive(Serialize)]
 pub struct RapportPositionsDto {
-    pub import_id: i64,
     pub sauvegarde: String,
     pub positions: PositionsDto,
     pub supprimees: usize,
 }
 
 /// Importe une photo du portefeuille : nouvelles lignes et mises à jour en une transaction, après une copie
-/// de sécurité. Les lignes absentes du fichier ne sont supprimées que si `supprimer_absentes`.
+/// de sécurité (restaurable dans Paramètres). Les lignes absentes du fichier ne sont supprimées que si `supprimer_absentes`.
 #[tauri::command]
 pub async fn importer_positions(
     etat: State<'_, Etat>,
@@ -464,12 +462,12 @@ pub async fn importer_positions(
     let mut db = etat.db();
     let copie = crate::reglages::copie_de_securite(&db, &etat.chemin_db, "avant-import")?;
     let supprimees = plan.absentes.len();
-    let import_id = appliquer(&mut db, &plan)?;
-    Ok(RapportPositionsDto { import_id, sauvegarde: copie.to_string_lossy().into_owned(), positions: dto, supprimees })
+    appliquer(&mut db, &plan)?;
+    Ok(RapportPositionsDto { sauvegarde: copie.to_string_lossy().into_owned(), positions: dto, supprimees })
 }
 
-pub fn appliquer(db: &mut Store, plan: &PlanPositions) -> Resultat<i64> {
-    db.importer_positions(&plan.fichier, &plan.mises_a_jour, &plan.nouvelles, &plan.absentes).map_err(err)
+pub fn appliquer(db: &mut Store, plan: &PlanPositions) -> Resultat<()> {
+    db.importer_positions(&plan.mises_a_jour, &plan.nouvelles, &plan.absentes).map_err(err)
 }
 
 #[cfg(test)]
@@ -502,12 +500,12 @@ TTE.PA,50.00,35.07,true,TotalEnergies SE,78.36,,4.62,3918.0,3918.0,1753.35,123.4
     }
 
     #[test]
-    fn moning_sur_un_pea_vide_puis_a_jour_puis_annule() {
+    fn moning_sur_un_pea_vide_puis_a_jour() {
         let mut db = Store::en_memoire().unwrap();
         let (dto, p) = plan(&db, MONING, &HashMap::new());
         assert_eq!(dto.format, "Moning");
         assert_eq!(dto.compteurs.nouvelles, 4);
-        let id = appliquer(&mut db, &p).unwrap();
+        appliquer(&mut db, &p).unwrap();
         let lignes = db.positions().unwrap();
         assert_eq!(lignes.len(), 4);
         let ai = lignes.iter().find(|l| l.symbole == "AI.PA").unwrap();
@@ -521,9 +519,6 @@ TTE.PA,50.00,35.07,true,TotalEnergies SE,78.36,,4.62,3918.0,3918.0,1753.35,123.4
         let (dto, p) = plan(&db, MONING, &HashMap::new());
         assert_eq!(dto.compteurs.identiques, 4);
         assert!(p.nouvelles.is_empty() && p.mises_a_jour.is_empty());
-
-        db.annuler_import_positions(id).unwrap();
-        assert!(db.positions().unwrap().is_empty());
     }
 
     #[test]
@@ -538,23 +533,16 @@ TTE.PA,50.00,35.07,true,TotalEnergies SE,78.36,,4.62,3918.0,3918.0,1753.35,123.4
         assert_eq!(dto.lignes[0].statut, StatutPosition::MiseAJour);
         assert_eq!(dto.lignes[0].messages[0], "5 titres, PRU 30 € → 11 titres, PRU 35,83 €");
         assert_eq!(dto.absentes, vec!["MC.PA".to_string()]);
-        let id = appliquer(&mut db, &p).unwrap();
+        appliquer(&mut db, &p).unwrap();
         let nro = db.positions().unwrap().into_iter().find(|l| l.symbole == "NRO.PA").unwrap();
         assert_eq!((nro.quantite_micro, nro.pru_micro, nro.pays.as_deref()), (11_000_000, 35_830_000, Some("FR")));
         assert_eq!(db.positions().unwrap().len(), 2, "la ligne absente du fichier est gardée");
 
-        // Annulation : la ligne retrouve ses anciennes valeurs.
-        db.annuler_import_positions(id).unwrap();
-        let nro = db.positions().unwrap().into_iter().find(|l| l.symbole == "NRO.PA").unwrap();
-        assert_eq!((nro.quantite_micro, nro.pru_micro), (5_000_000, 30_000_000));
-
-        // Avec suppression des absentes, puis annulation.
+        // Avec suppression des absentes.
         let (_, p) = plan(&db, csv, &HashMap::new());
         assert_eq!(p.absentes.len(), 1);
-        let id = appliquer(&mut db, &p).unwrap();
+        appliquer(&mut db, &p).unwrap();
         assert_eq!(db.positions().unwrap().len(), 1);
-        db.annuler_import_positions(id).unwrap();
-        assert_eq!(db.positions().unwrap().len(), 2);
     }
 
     #[test]

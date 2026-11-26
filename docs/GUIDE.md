@@ -189,7 +189,7 @@ Un aperçu indique, titre par titre, ce qui va se passer : **Nouvelle** ligne, *
 - Un export de **PEA-PME** est refusé quand son titre l'indique (Escarcelle ne suit que le PEA). Ce n'est pas toujours le cas : n'importez que l'export de votre PEA.
 - Un titre présent deux fois dans le fichier est regroupé (quantités additionnées, PRU moyen pondéré).
 - Importer deux fois le même fichier ne change rien.
-- **Imports précédents** (en bas de la page PEA) : chaque import peut être annulé ; les lignes reviennent à leur état d'avant.
+- Une **copie de sécurité** de vos données est faite avant chaque import, dans le dossier de données : en cas d'erreur, restaurez-la dans **Paramètres → Restaurer une sauvegarde** (fichier `escarcelle-avant-import-…db`).
 
 ### Importer un historique d'opérations
 
@@ -204,7 +204,6 @@ Bon à savoir :
 - Pour un achat ou une vente, le **montant est calculé** (quantité × prix) ; les **frais** s'ajoutent au PRU. Les lignes du PEA calculées ainsi sont marquées **importée** : leur quantité et leur PRU ne se modifient plus à la main.
 - Les **intérêts des livrets ne sont pas importés** : Escarcelle les recalcule et indique, année par année, s'ils sont conformes à ceux du fichier.
 - Pour un livret, Escarcelle connaît les taux depuis le 1er février 2020 : remplacez les opérations plus anciennes par une ligne `solde`.
-- L'annulation d'un import est refusée si elle rendait impossible une opération faite depuis : annulez d'abord l'import le plus récent.
 
 ---
 
@@ -216,10 +215,12 @@ Cliquez sur le **nom d'une ligne** : sa fiche s'ouvre au-dessus de la courbe.
 
 | Donnée | Signification |
 | :--- | :--- |
-| Dividende annuel / action | Total versé ces 12 derniers mois, et rythme (annuel, semestriel, trimestriel) |
-| Rendement | Dividende annuel ÷ cours actuel |
-| Croissance | Hausse moyenne du dividende par an ces dernières années |
+| Dividende / action, 12 derniers mois | Somme des dividendes **détachés** ces 12 derniers mois (période affichée), et rythme (annuel, semestriel, trimestriel) |
+| Rendement | Dividende des 12 derniers mois ÷ cours actuel |
+| Croissance | Hausse moyenne par an du total des dividendes d'une année civile complète, entre les années affichées (6 ans au plus). Pour le PEA : moyenne des lignes, pondérée par leur dividende |
 | Prochain détachement | Date estimée d'après celle de l'an dernier : à confirmer sur le site de la société |
+
+Escarcelle compte ce qui a **déjà été versé**. Une hausse annoncée n'apparaît qu'une fois le dividende détaché : une application qui projette les prochains versements (Moning, par exemple) peut afficher un montant plus élevé. Exemple fin novembre 2026 : TotalEnergies a détaché 0,85 € trois fois puis 0,90 € (3,45 € sur 12 mois), alors que les acomptes annoncés sont de 0,90 € (3,60 € par an).
 
 ### Du brut au net
 

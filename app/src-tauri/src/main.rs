@@ -79,8 +79,6 @@ fn main() {
             import::champs_import,
             import::analyser_import,
             import::importer,
-            import::imports,
-            import::annuler_import,
             import::correspondances,
             import::enregistrer_correspondance,
             import::supprimer_correspondance,

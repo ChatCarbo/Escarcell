@@ -2,7 +2,7 @@
 //!
 //! Parcours : analyse du fichier (encodage, séparateurs, correspondance des colonnes, aperçu ligne par
 //! ligne), puis import des seules lignes valides en une transaction, après une copie de sécurité de la base.
-//! Un import peut être annulé en bloc. Le fichier est relu et contrôlé à nouveau au moment de l'import :
+//! La copie de sécurité se restaure dans Paramètres. Le fichier est relu et contrôlé à nouveau au moment de l'import :
 //! l'interface ne transmet jamais d'opérations, seulement le chemin et la correspondance des colonnes.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -763,71 +763,6 @@ pub async fn importer(
     Ok(RapportDto { import_id, sauvegarde: copie.to_string_lossy().into_owned(), analyse: a.dto })
 }
 
-#[tauri::command]
-pub fn imports(etat: State<'_, Etat>) -> Resultat<Vec<crate::store::ImportEnregistre>> {
-    etat.db().imports().map_err(err)
-}
-
-/// Annule un import : ses opérations sont supprimées et les lignes du PEA recalculées.
-/// Refusé si une opération restante (saisie ou d'un autre import) deviendrait impossible.
-#[tauri::command]
-pub fn annuler_import(etat: State<'_, Etat>, id: i64) -> Resultat<()> {
-    let mut db = etat.db();
-    // Import d'une photo du portefeuille : les lignes retrouvent leur état d'avant.
-    if db.genre_import(id).map_err(err)? == "POSITIONS" {
-        return db.annuler_import_positions(id).map_err(err);
-    }
-    annuler(&mut db, id)
-}
-
-fn annuler(db: &mut Store, id: i64) -> Resultat<()> {
-    let retirees: BTreeSet<i64> = db.operations_import(id).map_err(err)?.into_iter().collect();
-    for c in db.comptes().map_err(err)? {
-        let avant = db.operations(c.id).map_err(err)?;
-        if !avant.iter().any(|o| retirees.contains(&o.id)) {
-            continue;
-        }
-        let apres: Vec<Operation> = avant.iter().filter(|o| !retirees.contains(&o.id)).cloned().collect();
-        match c.type_.as_str() {
-            "LIVRET_A" | "LDDS" | "LEP" => crate::livrets::verifier_modification(&c.type_, &avant, &apres, false)
-                .map_err(|e| format!("Annulation impossible : {e}"))?,
-            "PEA" => {
-                let journal: Vec<MouvementTitre> = apres.iter().filter_map(mouvement_titre).collect();
-                if let Some((k, _)) = rejouer(&journal).erreurs.first() {
-                    return Err(format!(
-                        "Annulation impossible : la vente du {} ({}) deviendrait supérieure à la quantité détenue.",
-                        date_fr(journal[*k].date),
-                        journal[*k].isin
-                    ));
-                }
-            }
-            _ => {}
-        }
-    }
-    // État des lignes du PEA touchées, recalculé sans les opérations de l'import.
-    let pea: Vec<Operation> = match db.comptes().map_err(err)?.into_iter().find(|c| c.type_ == "PEA") {
-        Some(c) => db.operations(c.id).map_err(err)?.into_iter().filter(|o| !retirees.contains(&o.id)).collect(),
-        None => Vec::new(),
-    };
-    let rejeu = rejouer(&pea.iter().filter_map(mouvement_titre).collect::<Vec<_>>());
-    let lignes: Vec<LignePeaCalculee> = db
-        .isins_import(id)
-        .map_err(err)?
-        .into_iter()
-        .map(|isin| {
-            let l = rejeu.lignes.get(&isin).copied().unwrap_or_default();
-            LignePeaCalculee {
-                quantite_micro: l.quantite_micro,
-                pru_micro: l.pru().micro(),
-                symbole: isin.clone(),
-                nom: isin.clone(),
-                isin,
-            }
-        })
-        .collect();
-    db.annuler_import(id, &lignes).map_err(err)
-}
-
 // ---------- Correspondances enregistrées et modèle ----------
 
 #[derive(Serialize)]
@@ -922,7 +857,7 @@ mod tests {
     const ENTETE: &str = "date;compte;type;isin;libelle;quantite;prix_unitaire;montant;frais;devise;note\n";
 
     #[test]
-    fn import_complet_puis_doublons_puis_annulation() {
+    fn import_complet_puis_doublons() {
         let mut db = Store::en_memoire().unwrap();
         let csv = format!(
             "{ENTETE}2025-01-02;PEA;versement;;;;;5000;;;\n\
@@ -950,7 +885,7 @@ mod tests {
         assert!(a.dto.lignes[6].messages[0].contains("Escarcelle calcule"), "{:?}", a.dto.lignes[6].messages);
         assert_eq!(a.plan.comptes.len(), 2);
         assert_eq!(a.plan.comptes.iter().find(|c| c.type_ == "PEA").unwrap().ouverture, "2025-01-02");
-        let id = db.importer(&a.plan).unwrap();
+        db.importer(&a.plan).unwrap();
 
         let lignes = db.positions().unwrap();
         assert_eq!(lignes.len(), 1);
@@ -965,21 +900,6 @@ mod tests {
         assert_eq!(b.dto.compteurs.doublons, 6);
         assert_eq!(b.dto.compteurs.a_importer, 0);
         assert!(b.dto.lignes[6].messages[0].contains("Escarcelle calcule"));
-
-        db.annuler_import(
-            id,
-            &[LignePeaCalculee {
-                isin: "FR001400U5Q4".into(),
-                quantite_micro: 0,
-                pru_micro: 0,
-                symbole: String::new(),
-                nom: String::new(),
-            }],
-        )
-        .unwrap();
-        assert!(db.positions().unwrap().is_empty());
-        assert!(db.comptes().unwrap().is_empty(), "comptes ouverts par l'import refermés");
-        assert!(db.imports().unwrap().is_empty());
     }
 
     #[test]
@@ -1006,7 +926,7 @@ mod tests {
     }
 
     #[test]
-    fn ligne_manuelle_remplacee_puis_restauree() {
+    fn ligne_manuelle_remplacee() {
         let mut db = Store::en_memoire().unwrap();
         db.ajouter_position(&Position {
             id: 0,
@@ -1024,25 +944,10 @@ mod tests {
         assert_eq!(statuts(&a), vec![Statut::Avertissement]);
         assert!(a.dto.lignes[0].messages[0].contains("saisie à la main"));
         assert!(a.nouveaux_isins.is_empty());
-        let id = db.importer(&a.plan).unwrap();
+        db.importer(&a.plan).unwrap();
         let p = &db.positions().unwrap()[0];
         assert_eq!((p.quantite_micro, p.pru_micro, p.journal), (10_000_000, 55_000_000, true));
         assert_eq!((p.symbole.as_str(), p.pays.as_deref()), ("TTE.PA", Some("FR")));
-        let isins = db.isins_import(id).unwrap();
-        assert_eq!(isins, vec!["FR0000120271".to_string()]);
-        db.annuler_import(
-            id,
-            &[LignePeaCalculee {
-                isin: isins[0].clone(),
-                quantite_micro: 0,
-                pru_micro: 0,
-                symbole: String::new(),
-                nom: String::new(),
-            }],
-        )
-        .unwrap();
-        let p = &db.positions().unwrap()[0];
-        assert_eq!((p.quantite_micro, p.pru_micro, p.journal), (5_000_000, 50_000_000, false));
     }
 
     #[test]
@@ -1085,48 +990,6 @@ mod tests {
             decoder_correspondance(&encoder(&c)),
             vec![("Date d'op".to_string(), Some("date".to_string())), ("X".into(), None)]
         );
-    }
-
-    fn importer_csv(db: &mut Store, csv: &str) -> i64 {
-        let a = analyse(db, csv, false);
-        assert!(a.dto.lignes.iter().all(|l| l.statut == Statut::Valide), "{:?}", a.dto.lignes);
-        db.importer(&a.plan).unwrap()
-    }
-
-    #[test]
-    fn annulation_refusee_si_elle_rend_une_operation_impossible() {
-        let mut db = Store::en_memoire().unwrap();
-        let achats = importer_csv(&mut db, &format!("{ENTETE}2025-01-06;PEA;achat;FR001400U5Q4;;10;50;;;;\n"));
-        let vente = importer_csv(&mut db, &format!("{ENTETE}2025-02-06;PEA;vente;FR001400U5Q4;;4;60;;;;\n"));
-        assert_eq!(db.positions().unwrap()[0].quantite_micro, 6_000_000);
-        let e = annuler(&mut db, achats).unwrap_err();
-        assert!(e.contains("supérieure à la quantité"), "{e}");
-        // Dans l'ordre inverse, tout s'annule.
-        annuler(&mut db, vente).unwrap();
-        assert_eq!(db.positions().unwrap()[0].quantite_micro, 10_000_000);
-        annuler(&mut db, achats).unwrap();
-        assert!(db.positions().unwrap().is_empty());
-
-        // Livret : un retrait saisi après l'import repose sur le versement importé.
-        let versement = importer_csv(&mut db, &format!("{ENTETE}2025-03-10;LDDS;versement;;;;;500;;;\n"));
-        let ldds = db.comptes().unwrap()[0].id;
-        db.ajouter_operation(&Operation {
-            compte_id: ldds,
-            date: "2025-04-10".into(),
-            type_: "RETRAIT".into(),
-            montant_cents: Some(20_000),
-            id: 0,
-            isin: None,
-            quantite_micro: None,
-            cours_micro: None,
-            frais_cents: 0,
-            valeur_plan_cents: None,
-            libelle: None,
-        })
-        .unwrap();
-        let e = annuler(&mut db, versement).unwrap_err();
-        assert!(e.starts_with("Annulation impossible"), "{e}");
-        assert_eq!(db.imports().unwrap().len(), 1);
     }
 
     /// Le modèle importé sur une base vide donne les mêmes PRU et soldes qu'une saisie manuelle équivalente.

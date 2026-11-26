@@ -8,7 +8,6 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import ImportPortefeuille from '../lib/ImportPortefeuille.svelte';
   import ImportOperations from '../lib/ImportOperations.svelte';
-  import HistoriqueImports from '../lib/HistoriqueImports.svelte';
 
   const PALETTE = ['#10B981', '#38BDF8', '#FBBF24', '#0284C7', '#34D399', '#F97316', '#8B5CF6'];
 
@@ -31,7 +30,6 @@
   // Import : { chemin, genre: 'positions' | 'operations', positions } pendant l'aperçu.
   let importEnCours = $state(null);
   let lectureImport = $state(false);
-  let imports = $state([]);
   let delai;
   let minuterie;
   let numeroRecherche = 0; // ignore les réponses d'une recherche dépassée par une frappe plus récente
@@ -46,6 +44,19 @@
   const heure = (s) => (s ? new Date(s * 1000).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '');
   const jourFr = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : '—');
   const signe = (v) => (v > 0 ? '+' : '');
+  // Période des dividendes comptés : les 12 derniers mois, jusqu'à aujourd'hui inclus.
+  const periode12 = () => {
+    const f = (d) => d.toLocaleDateString('fr-FR');
+    const fin = new Date();
+    const debut = new Date(fin);
+    debut.setFullYear(fin.getFullYear() - 1);
+    debut.setDate(debut.getDate() + 1);
+    return `du ${f(debut)} au ${f(fin)}`;
+  };
+  const AIDE_DIVIDENDES =
+    "Somme des dividendes détachés ces 12 derniers mois (dividendes réellement versés, historique Yahoo Finance). " +
+    "Une hausse annoncée mais pas encore détachée n'est pas comptée : d'autres applications, qui projettent les prochains " +
+    'versements, peuvent afficher un montant différent.';
   const FREQUENCE = { 1: 'annuel', 2: 'semestriel', 3: 'en 3 fois', 4: 'trimestriel', 12: 'mensuel' };
 
   /** Exécute une commande et affiche son erreur éventuelle au lieu de la laisser se perdre. */
@@ -113,7 +124,6 @@
     try {
       pf = await api.positions();
       evenements = await api.evenements();
-      imports = await api.imports();
     } catch (e) {
       erreurs = [String(e)];
       return;
@@ -232,8 +242,8 @@
     messageExport = '';
     if (!pf?.lignes.length) return;
     const entetes = ['Titre', 'Symbole', 'ISIN', 'Pays', 'Quantité', 'PRU (€)', 'Cours (€)', 'Valeur (€)', 'Investi (€)',
-      'Plus-value (€)', 'Plus-value (%)', 'Variation 1 an (%)', 'Dividende annuel / action (€)', 'Rendement (%)',
-      'Dividende brut annuel (€)', 'Retenue à la source (%)', 'Dividende net annuel (€)', 'Prochain détachement estimé'];
+      'Plus-value (€)', 'Plus-value (%)', 'Variation 1 an (%)', 'Dividende / action, 12 derniers mois (€)', 'Rendement 12 mois (%)',
+      'Dividende brut 12 derniers mois (€)', 'Retenue à la source (%)', 'Dividende net 12 derniers mois (€)', 'Prochain détachement estimé'];
     const lignes = pf.lignes.map((l) => [
       l.nom, l.symbole, l.isin ?? '', l.pays ?? '', microCsv(l.quantite_micro), microCsv(l.pru_micro), microCsv(l.cours_micro),
       eurosCsv(l.valeur_cents), eurosCsv(l.investi_cents), eurosCsv(l.pv_cents), microCsv(l.pv_micro * 100, 2),
@@ -270,7 +280,7 @@
   <ImportOperations
     chemin={importEnCours.chemin}
     fermer={() => importTermine('')}
-    fini={async () => { imports = await api.imports(); pf = await api.positions(); actualiser(); }}
+    fini={async () => { pf = await api.positions(); actualiser(); }}
   />
 {/if}
 
@@ -292,16 +302,19 @@
 
   {#if pf.lignes.length}
     <div class="kpis">
-      <div class="kpi"><span>Dividendes annuels bruts</span><strong>{euros(pf.div_brut_cents)}</strong></div>
-      <div class="kpi">
-        <span>Dividendes annuels nets</span><strong class="positif">{euros(pf.div_net_cents)}</strong>
+      <div class="kpi" title={AIDE_DIVIDENDES}>
+        <span>Dividendes bruts des 12 derniers mois</span><strong>{euros(pf.div_brut_cents)}</strong>
+        <small class="discret">détachés {periode12()}</small>
+      </div>
+      <div class="kpi" title={AIDE_DIVIDENDES}>
+        <span>Dividendes nets des 12 derniers mois</span><strong class="positif">{euros(pf.div_net_cents)}</strong>
         <small class="discret">après retenues étrangères</small>
       </div>
-      <div class="kpi"><span>Rendement des dividendes</span><strong>{pct(pf.div_rendement_micro)}</strong><small class="discret">brut, sur la valeur actuelle</small></div>
-      <div class="kpi">
+      <div class="kpi"><span>Rendement des dividendes</span><strong>{pct(pf.div_rendement_micro)}</strong><small class="discret">dividendes bruts des 12 derniers mois / valeur actuelle</small></div>
+      <div class="kpi" title="Pour chaque ligne : évolution moyenne par an du total des dividendes d'une année civile complète, entre la plus ancienne des 6 dernières années et la dernière (voir la fiche du titre). Pour le PEA : moyenne des lignes, pondérée par leur dividende.">
         <span>Croissance du dividende</span>
         <strong>{pf.div_croissance_micro === null ? '—' : `${signe(pf.div_croissance_micro)}${pct(pf.div_croissance_micro, 1)} / an`}</strong>
-        <small class="discret">moyenne sur les dernières années</small>
+        <small class="discret">par an, années civiles complètes</small>
       </div>
     </div>
   {/if}
@@ -315,7 +328,7 @@
         <thead>
           <tr>
             <th>Titre</th><th class="nombre">Quantité</th><th class="nombre">PRU (€)</th><th class="nombre">Cours</th>
-            <th class="nombre">Valeur</th><th class="nombre">+/− value</th><th class="nombre">1 an</th><th class="nombre">Rend.</th><th></th>
+            <th class="nombre">Valeur</th><th class="nombre">+/− value</th><th class="nombre">1 an</th><th class="nombre" title="Dividendes bruts des 12 derniers mois / cours actuel">Rend.</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -416,14 +429,14 @@
       <h3>{l.nom} — dividendes et événements</h3>
       {#if l.div_par_action_micro > 0}
         <div class="fiche-grille">
-          <div><span>Dividende annuel / action</span><b>{fmt(l.div_par_action_micro, 2)} €</b><small>{FREQUENCE[l.div_frequence] ?? `${l.div_frequence} versements`}</small></div>
-          <div><span>Rendement</span><b>{l.div_rendement_micro ? pct(l.div_rendement_micro) : '—'}</b></div>
-          <div><span>Croissance</span><b>{l.div_croissance_micro === null ? '—' : `${signe(l.div_croissance_micro)}${pct(l.div_croissance_micro, 1)} / an`}</b></div>
+          <div><span>Dividende / action, 12 derniers mois</span><b>{fmt(l.div_par_action_micro, 2)} €</b><small>{FREQUENCE[l.div_frequence] ?? `${l.div_frequence} versements`}, détachés {periode12()}</small></div>
+          <div><span>Rendement</span><b>{l.div_rendement_micro ? pct(l.div_rendement_micro) : '—'}</b><small>12 derniers mois / cours actuel</small></div>
+          <div><span>Croissance</span><b>{l.div_croissance_micro === null ? '—' : `${signe(l.div_croissance_micro)}${pct(l.div_croissance_micro, 1)} / an`}</b>{#if l.div_croissance_debut}<small>moyenne par an du total annuel, {l.div_croissance_debut} → {l.div_croissance_fin}</small>{/if}</div>
           <div><span>Prochain détachement</span><b>{jourFr(l.div_prochain_estime)}</b><small>estimé d'après l'an dernier</small></div>
         </div>
         <table class="decomposition">
           <tbody>
-            <tr><td>Dividende brut annuel ({microVersTexte(l.quantite_micro)} actions)</td><td class="nombre">{euros(l.div_brut_cents)}</td></tr>
+            <tr><td>Dividende brut des 12 derniers mois ({microVersTexte(l.quantite_micro)} actions)</td><td class="nombre">{euros(l.div_brut_cents)}</td></tr>
             <tr>
               <td>
                 Retenue à la source {l.pays ? `(${PAYS[l.pays] ?? l.pays}, ${pct(l.retenue_micro, 2)})` : ''}
@@ -432,9 +445,10 @@
               </td>
               <td class="nombre negatif">−{euros(l.div_retenue_cents)}</td>
             </tr>
-            <tr class="total"><td>Dividende net encaissé par an</td><td class="nombre positif">{euros(l.div_net_cents)}</td></tr>
+            <tr class="total"><td>Dividende net encaissé sur 12 mois</td><td class="nombre positif">{euros(l.div_net_cents)}</td></tr>
           </tbody>
         </table>
+        <p class="discret petit">{AIDE_DIVIDENDES}</p>
       {:else}
         <p class="discret">Aucun dividende détaché ces 12 derniers mois (ou historique pas encore récupéré : cliquez sur « Actualiser les cours »).</p>
       {/if}
@@ -466,11 +480,4 @@
   {#if parts.length > 1}
     <Donut titre="Répartition des lignes" {parts} />
   {/if}
-{/if}
-
-{#if imports.length}
-  <details class="carte">
-    <summary><h3 class="resume">Imports précédents ({imports.length})</h3></summary>
-    <HistoriqueImports {imports} annule={() => importTermine('Import annulé : les lignes du PEA sont revenues à leur état d\'avant.')} />
-  </details>
 {/if}

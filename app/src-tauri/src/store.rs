@@ -152,6 +152,12 @@ ALTER TABLE positions ADD COLUMN journal INTEGER NOT NULL DEFAULT 0;
 -- ligne écrite.
 ALTER TABLE imports ADD COLUMN genre TEXT NOT NULL DEFAULT 'OPERATIONS';
 "#,
+    r#"
+-- Version 0.4 : l'annulation des imports est retirée (une copie de sécurité est faite avant chaque import et se
+-- restaure dans Paramètres). Les lignes mises de côté pour l'annuler ne servent plus. La table imports reste :
+-- elle date les imports d'opérations (colonne import_id des opérations).
+DROP TABLE IF EXISTS imports_positions;
+"#,
 ];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -221,19 +227,6 @@ pub struct PlanImport {
     pub operations: Vec<(String, Operation)>,
     /// État final des lignes du PEA touchées par l'import.
     pub lignes_pea: Vec<LignePeaCalculee>,
-}
-
-/// Import enregistré.
-#[derive(Clone, Debug, Serialize)]
-pub struct ImportEnregistre {
-    pub id: i64,
-    pub date: String,
-    pub fichier: String,
-    pub lignes: i64,
-    /// Opérations encore présentes (certaines ont pu être supprimées une à une).
-    pub operations: i64,
-    /// « OPERATIONS » (historique) ou « POSITIONS » (photo du portefeuille).
-    pub genre: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -335,7 +328,7 @@ impl Store {
     pub fn effacer_tout(&mut self) -> Result<(), StoreError> {
         let tx = self.conn.transaction()?;
         tx.execute_batch(
-            "DELETE FROM operations; DELETE FROM imports_positions; DELETE FROM imports; DELETE FROM positions; \
+            "DELETE FROM operations; DELETE FROM imports; DELETE FROM positions; \
              DELETE FROM comptes; DELETE FROM cours; DELETE FROM parametres; \
              DELETE FROM dividendes; DELETE FROM infos_titres; DELETE FROM evenements;",
         )?;
@@ -583,7 +576,6 @@ impl Store {
         let tx = self.conn.transaction()?;
         tx.execute("INSERT INTO imports (fichier, lignes) VALUES (?1, ?2)", params![plan.fichier, plan.lignes])?;
         let import_id = tx.last_insert_rowid();
-        let mut crees = Vec::new();
         for c in &plan.comptes {
             let existe: i64 =
                 tx.query_row("SELECT count(*) FROM comptes WHERE type = ?1 AND cloture IS NULL", [&c.type_], |r| {
@@ -594,10 +586,8 @@ impl Store {
                     "INSERT INTO comptes (nom, type, etablissement, produit, ouverture) VALUES (?1, ?2, '', NULL, ?3)",
                     params![c.nom, c.type_, c.ouverture],
                 )?;
-                crees.push(tx.last_insert_rowid().to_string());
             }
         }
-        tx.execute("UPDATE imports SET comptes_crees = ?2 WHERE id = ?1", params![import_id, crees.join(",")])?;
         for (type_compte, o) in &plan.operations {
             let compte_id: i64 = tx.query_row(
                 "SELECT id FROM comptes WHERE type = ?1 AND cloture IS NULL ORDER BY id LIMIT 1",
@@ -622,7 +612,7 @@ impl Store {
             )?;
         }
         for l in &plan.lignes_pea {
-            // Les lignes saisies à la main pour ce titre sont mises de côté (restaurées si l'import est annulé).
+            // Les lignes saisies à la main pour ce titre sont remplacées par la ligne calculée (pays gardé).
             let pays: Option<String> = tx
                 .query_row(
                     "SELECT pays FROM positions WHERE isin = ?1 AND pays IS NOT NULL ORDER BY journal DESC, id LIMIT 1",
@@ -630,11 +620,6 @@ impl Store {
                     |r| r.get(0),
                 )
                 .optional()?;
-            tx.execute(
-                "INSERT INTO imports_positions (import_id, isin, symbole, nom, quantite_micro, pru_micro, pays)
-                 SELECT ?1, isin, symbole, nom, quantite_micro, pru_micro, pays FROM positions WHERE isin = ?2 AND journal = 0",
-                params![import_id, l.isin],
-            )?;
             let ancien: Option<(String, String)> = tx
                 .query_row(
                     "SELECT symbole, nom FROM positions WHERE isin = ?1 ORDER BY journal DESC, id LIMIT 1",
@@ -648,163 +633,27 @@ impl Store {
         Ok(import_id)
     }
 
-    pub fn imports(&self) -> Result<Vec<ImportEnregistre>, StoreError> {
-        let mut st = self.conn.prepare(
-            "SELECT i.id, i.date, i.fichier, i.lignes, (SELECT count(*) FROM operations o WHERE o.import_id = i.id), i.genre
-             FROM imports i ORDER BY i.id DESC",
-        )?;
-        let rows = st.query_map([], |r| {
-            Ok(ImportEnregistre {
-                id: r.get(0)?,
-                date: r.get(1)?,
-                fichier: r.get(2)?,
-                lignes: r.get(3)?,
-                operations: r.get(4)?,
-                genre: r.get(5)?,
-            })
-        })?;
-        Ok(rows.collect::<Result<_, _>>()?)
-    }
-
-    pub fn genre_import(&self, import_id: i64) -> Result<String, StoreError> {
-        Ok(self.conn.query_row("SELECT genre FROM imports WHERE id = ?1", [import_id], |r| r.get(0))?)
-    }
-
     /// Applique l'import d'une photo du portefeuille en une transaction : lignes mises à jour (les anciennes,
-    /// identifiées, sont remplacées), nouvelles lignes, lignes supprimées. Rend le numéro de l'import.
+    /// identifiées, sont remplacées), nouvelles lignes, lignes supprimées. Seules les lignes saisies à la main
+    /// sont touchées.
     pub fn importer_positions(
         &mut self,
-        fichier: &str,
         mises_a_jour: &[(Vec<i64>, Position)],
         nouvelles: &[Position],
         supprimees: &[i64],
-    ) -> Result<i64, StoreError> {
+    ) -> Result<(), StoreError> {
         let tx = self.conn.transaction()?;
-        let lignes = (mises_a_jour.len() + nouvelles.len() + supprimees.len()) as i64;
-        tx.execute(
-            "INSERT INTO imports (fichier, lignes, genre) VALUES (?1, ?2, 'POSITIONS')",
-            params![fichier, lignes],
-        )?;
-        let import_id = tx.last_insert_rowid();
-        let garder = |id: i64| -> Result<(), StoreError> {
-            tx.execute(
-                "INSERT INTO imports_positions (import_id, isin, symbole, nom, quantite_micro, pru_micro, pays)
-                 SELECT ?1, isin, symbole, nom, quantite_micro, pru_micro, pays FROM positions WHERE id = ?2 AND journal = 0",
-                params![import_id, id],
-            )?;
+        let ecrites = mises_a_jour.iter().map(|(a, p)| (a.as_slice(), p)).chain(nouvelles.iter().map(|p| (&[][..], p)));
+        for id in supprimees.iter().chain(mises_a_jour.iter().flat_map(|(a, _)| a)) {
             tx.execute("DELETE FROM positions WHERE id = ?1 AND journal = 0", [id])?;
-            Ok(())
-        };
-        for id in supprimees {
-            garder(*id)?;
         }
-        for (anciennes, p) in
-            mises_a_jour.iter().map(|(a, p)| (a.as_slice(), p)).chain(nouvelles.iter().map(|p| (&[][..], p)))
-        {
-            for id in anciennes {
-                garder(*id)?;
-            }
-            // Marque de la ligne écrite (quantité 0) : supprimée si l'import est annulé.
-            tx.execute(
-                "INSERT INTO imports_positions (import_id, isin, symbole, nom, quantite_micro, pru_micro, pays)
-                 VALUES (?1, ?2, ?3, ?4, 0, 0, NULL)",
-                params![import_id, p.isin, p.symbole, p.nom],
-            )?;
+        for (_, p) in ecrites {
             tx.execute(
                 "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise, journal)
                  VALUES ('PEA', ?1, ?2, ?3, ?4, ?5, ?6, 'EUR', 0)",
                 params![p.isin, p.symbole, p.nom, p.quantite_micro, p.pru_micro, p.pays],
             )?;
         }
-        tx.commit()?;
-        Ok(import_id)
-    }
-
-    /// Annule l'import d'une photo : les lignes écrites sont retirées, les lignes remplacées ou supprimées
-    /// sont remises telles qu'elles étaient.
-    pub fn annuler_import_positions(&mut self, import_id: i64) -> Result<(), StoreError> {
-        let tx = self.conn.transaction()?;
-        tx.execute(
-            "DELETE FROM positions WHERE journal = 0 AND symbole IN
-                 (SELECT symbole FROM imports_positions WHERE import_id = ?1 AND quantite_micro = 0)",
-            [import_id],
-        )?;
-        tx.execute(
-            "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise, journal)
-             SELECT 'PEA', isin, symbole, nom, quantite_micro, pru_micro, pays, 'EUR', 0
-             FROM imports_positions WHERE import_id = ?1 AND quantite_micro > 0",
-            [import_id],
-        )?;
-        tx.execute("DELETE FROM imports WHERE id = ?1", [import_id])?;
-        tx.commit()?;
-        Ok(())
-    }
-
-    /// Identifiants des opérations d'un import.
-    pub fn operations_import(&self, import_id: i64) -> Result<Vec<i64>, StoreError> {
-        let mut st = self.conn.prepare("SELECT id FROM operations WHERE import_id = ?1")?;
-        let rows = st.query_map([import_id], |r| r.get(0))?;
-        Ok(rows.collect::<Result<_, _>>()?)
-    }
-
-    /// ISIN des lignes du PEA touchées par un import (achats, ventes ou ligne manuelle remplacée).
-    pub fn isins_import(&self, import_id: i64) -> Result<Vec<String>, StoreError> {
-        let mut st = self.conn.prepare(
-            "SELECT isin FROM operations WHERE import_id = ?1 AND type IN ('ACHAT', 'VENTE') AND isin IS NOT NULL
-             UNION SELECT isin FROM imports_positions WHERE import_id = ?1 AND isin IS NOT NULL ORDER BY 1",
-        )?;
-        let rows = st.query_map([import_id], |r| r.get(0))?;
-        Ok(rows.collect::<Result<_, _>>()?)
-    }
-
-    /// Annule un import : supprime ses opérations, écrit l'état recalculé des lignes du PEA touchées
-    /// (calculé sans les opérations de l'import), restaure les lignes saisies à la main qu'il avait remplacées
-    /// quand il ne reste aucun achat ni vente du titre, et referme les comptes qu'il avait ouverts s'ils sont vides.
-    pub fn annuler_import(&mut self, import_id: i64, lignes_pea: &[LignePeaCalculee]) -> Result<(), StoreError> {
-        let tx = self.conn.transaction()?;
-        let crees: String =
-            tx.query_row("SELECT comptes_crees FROM imports WHERE id = ?1", [import_id], |r| r.get(0))?;
-        tx.execute("DELETE FROM operations WHERE import_id = ?1", [import_id])?;
-        for l in lignes_pea {
-            let historique: i64 = tx.query_row(
-                "SELECT count(*) FROM operations o JOIN comptes c ON c.id = o.compte_id
-                 WHERE c.type = 'PEA' AND o.isin = ?1 AND o.type IN ('ACHAT', 'VENTE')",
-                [&l.isin],
-                |r| r.get(0),
-            )?;
-            if historique > 0 {
-                let ancien: Option<(String, String)> = tx
-                    .query_row(
-                        "SELECT symbole, nom FROM positions WHERE isin = ?1 ORDER BY journal DESC, id LIMIT 1",
-                        [&l.isin],
-                        |r| Ok((r.get(0)?, r.get(1)?)),
-                    )
-                    .optional()?;
-                let pays: Option<String> = tx
-                    .query_row(
-                        "SELECT pays FROM positions WHERE isin = ?1 AND pays IS NOT NULL ORDER BY journal DESC, id LIMIT 1",
-                        [&l.isin],
-                        |r| r.get(0),
-                    )
-                    .optional()?;
-                ecrire_ligne_journal(&tx, l, ancien, pays)?;
-            } else {
-                tx.execute("DELETE FROM positions WHERE isin = ?1 AND journal = 1", [&l.isin])?;
-                tx.execute(
-                    "INSERT INTO positions (enveloppe, isin, symbole, nom, quantite_micro, pru_micro, pays, devise, journal)
-                     SELECT 'PEA', isin, symbole, nom, quantite_micro, pru_micro, pays, 'EUR', 0
-                     FROM imports_positions WHERE import_id = ?1 AND isin = ?2",
-                    params![import_id, l.isin],
-                )?;
-            }
-        }
-        for id in crees.split(',').filter_map(|s| s.trim().parse::<i64>().ok()) {
-            tx.execute(
-                "DELETE FROM comptes WHERE id = ?1 AND NOT EXISTS (SELECT 1 FROM operations WHERE compte_id = ?1)",
-                [id],
-            )?;
-        }
-        tx.execute("DELETE FROM imports WHERE id = ?1", [import_id])?;
         tx.commit()?;
         Ok(())
     }

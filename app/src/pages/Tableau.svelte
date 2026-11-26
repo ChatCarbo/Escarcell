@@ -70,7 +70,9 @@
       <span>Plus-value latente du PEA</span>
       <strong class:positif={tdb.pv_latente_cents > 0} class:negatif={tdb.pv_latente_cents < 0}>{euros(tdb.pv_latente_cents)}</strong>
     </div>
-    <div class="kpi"><span>Dividendes nets par an</span><strong class="positif">{euros(tdb.dividendes_nets_cents)}</strong></div>
+    <div class="kpi" title="Somme des dividendes détachés ces 12 derniers mois, après retenues étrangères. Une hausse annoncée mais pas encore détachée n'est pas comptée.">
+      <span>Dividendes nets des 12 derniers mois</span><strong class="positif">{euros(tdb.dividendes_nets_cents)}</strong>
+    </div>
   </div>
 
   {#if tdb.alertes.length}

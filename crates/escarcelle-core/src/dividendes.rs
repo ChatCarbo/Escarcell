@@ -100,6 +100,8 @@ pub struct SyntheseDividendes {
     pub dernier: Option<Versement>,
     /// Croissance annuelle moyenne du dividende sur les années complètes disponibles (au plus 5).
     pub croissance_annuelle: Option<Rate>,
+    /// Années civiles comparées pour la croissance (première et dernière).
+    pub croissance_periode: Option<(i32, i32)>,
 }
 
 /// Résume l'historique des dividendes (dates de détachement) à la date `aujourd_hui`.
@@ -121,6 +123,10 @@ pub fn synthese(historique: &[Versement], aujourd_hui: Date) -> SyntheseDividend
         }
     }
     let totaux = if totaux.len() > 6 { totaux[totaux.len() - 6..].to_vec() } else { totaux };
+    let croissance_periode = match (totaux.first(), totaux.last()) {
+        (Some(&(a0, _)), Some(&(a1, _))) if a1 > a0 => Some((a0, a1)),
+        _ => None,
+    };
     let croissance_annuelle = match (totaux.first(), totaux.last()) {
         (Some(&(a0, t0)), Some(&(a1, t1))) if a1 > a0 => {
             let n = (a1 - a0) as f64;
@@ -136,6 +142,7 @@ pub fn synthese(historique: &[Versement], aujourd_hui: Date) -> SyntheseDividend
         prochain_estime,
         dernier,
         croissance_annuelle,
+        croissance_periode,
     }
 }
 
@@ -208,6 +215,7 @@ mod tests {
         ];
         let s = synthese(&h, Date::ymd(2026, 3, 1));
         assert_eq!(s.croissance_annuelle, Some(Rate::from_micro(50_000)));
+        assert_eq!(s.croissance_periode, Some((2022, 2025)));
         assert_eq!(s.frequence, 1);
         assert_eq!(s.prochain_estime, Some(Date::ymd(2026, 5, 10)));
     }
