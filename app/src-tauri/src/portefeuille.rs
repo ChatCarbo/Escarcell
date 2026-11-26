@@ -25,14 +25,15 @@ fn maintenant() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
 
-/// Quantité maximale acceptée (un milliard de titres) : garde les calculs loin des dépassements.
-const QUANTITE_MAX_MICRO: i64 = 1_000_000_000 * 1_000_000;
+/// Quantité maximale acceptée (dix millions de titres) : avec un prix d'un million d'euros au plus, une ligne vaut
+/// au plus 10¹³ €, soit 10¹⁵ centimes ; il faudrait des milliers de lignes pour approcher la limite des entiers 64 bits.
+const QUANTITE_MAX_MICRO: i64 = 10_000_000 * 1_000_000;
 /// PRU ou cours maximal accepté (un million d'euros par titre).
 const PRIX_MAX_MICRO: i64 = 1_000_000 * 1_000_000;
 
 fn verifier_saisie(quantite_micro: i64, pru_micro: i64) -> Resultat<()> {
     if quantite_micro <= 0 || quantite_micro > QUANTITE_MAX_MICRO {
-        return Err("La quantité doit être positive (un milliard de titres au plus).".into());
+        return Err("La quantité doit être positive (dix millions de titres au plus).".into());
     }
     if !(0..=PRIX_MAX_MICRO).contains(&pru_micro) {
         return Err("Le PRU doit être compris entre 0 et 1 000 000 €.".into());

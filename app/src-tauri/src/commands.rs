@@ -52,6 +52,9 @@ pub fn ajouter_operation(etat: State<'_, Etat>, mut operation: Operation) -> Res
     if !operation.montant_cents.is_some_and(|m| m > 0) {
         return Err("Le montant doit être positif.".into());
     }
+    if operation.montant_cents.is_some_and(|m| m > escarcelle_core::livret::MONTANT_MAX.cents()) {
+        return Err("Le montant ne peut pas dépasser 10 000 000 €.".into());
+    }
     // Plafond et solde contrôlés à la date de valeur, avec toutes les opérations du livret.
     let db = etat.db();
     let type_ = type_livret(&db, operation.compte_id)?;

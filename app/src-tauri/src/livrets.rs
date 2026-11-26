@@ -6,6 +6,7 @@ use escarcelle_core::conseil_livret::{
 };
 use escarcelle_core::livret::{
     controler, debut_quinzaine, interets_maximum, normaliser, simuler, AnneeLivret, Anomalie, Mouvement, Sens,
+    MONTANT_MAX,
 };
 use escarcelle_core::params::{embarque, LivretParams};
 use escarcelle_core::{Date, Money};
@@ -271,7 +272,7 @@ pub fn conseil_livret(type_livret: String, sens: String, date: String, montant_c
     let d: Date = date.parse().map_err(err)?;
     let taux = params(&type_livret).taux.at(d).copied().unwrap_or_default();
     Ok(if sens == "RETRAIT" {
-        let c = conseil_retrait(d, Money::from_cents(montant_cents.max(0)), taux);
+        let c = conseil_retrait(d, Money::from_cents(montant_cents.clamp(0, MONTANT_MAX.cents())), taux);
         ConseilDto {
             sens,
             debut_quinzaine: c.debut_quinzaine.to_string(),
@@ -307,6 +308,7 @@ pub fn repartir_livrets(etat: State<'_, Etat>, sens: String, montant_cents: i64)
     if montant_cents <= 0 {
         return Ok(RepartitionDto { parts: Vec::new(), reste_cents: 0 });
     }
+    let montant_cents = montant_cents.min(MONTANT_MAX.cents());
     let detenus: Vec<(String, LivretDetenu)> = tous(&etat)?
         .into_iter()
         .filter(|l| l.compte_id.is_some())

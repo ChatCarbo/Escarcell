@@ -64,7 +64,9 @@ pub enum LivretError {
 impl fmt::Display for LivretError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MontantInvalide(m) => write!(f, "montant non positif au {}", m.date),
+            Self::MontantInvalide(m) => {
+                write!(f, "montant nul, négatif ou supérieur à 10 millions d'euros au {}", m.date)
+            }
             Self::TauxManquant(d) => write!(f, "aucun taux en vigueur au {d}"),
         }
     }
@@ -121,7 +123,7 @@ pub fn normaliser(mouvements: &[Mouvement]) -> Vec<usize> {
 pub fn simuler(mouvements: &[Mouvement], taux: &Series<Rate>, jusqu_a: i32) -> Result<Vec<AnneeLivret>, LivretError> {
     let mut effets: BTreeMap<(i32, u8), i64> = BTreeMap::new();
     for m in normaliser(mouvements).into_iter().map(|i| &mouvements[i]) {
-        if m.montant.cents() <= 0 {
+        if m.montant.cents() <= 0 || m.montant > MONTANT_MAX {
             return Err(LivretError::MontantInvalide(*m));
         }
         let delta = match m.sens {
@@ -183,6 +185,10 @@ pub fn interets_maximum(plafond: Money, taux: &Series<Rate>, annee: i32) -> Resu
     let m = [Mouvement::depart(Date::ymd(annee, 1, 1), plafond)];
     Ok(simuler(&m, taux, annee)?.first().map(|a| a.interets).unwrap_or(Money::ZERO))
 }
+
+/// Montant maximal d'un mouvement : 10 millions d'euros. Les plafonds des livrets en sont très loin ; la limite
+/// garantit qu'aucune somme ne peut déborder les entiers 64 bits, même avec une saisie corrompue.
+pub const MONTANT_MAX: Money = Money::from_cents(1_000_000_000);
 
 /// Mouvement impossible à la date où il est daté.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -478,5 +484,44 @@ mod tests {
             b,
             vec![(2, Anomalie::SoldeDepartEnDouble), (3, Anomalie::AvantSoldeDepart { depart: Date::ymd(2025, 1, 1) })]
         );
+    }
+
+    /// Les intérêts sont arrondis une seule fois par an, pas à chaque quinzaine : 100 € à 1,70 % toute l'année
+    /// donnent 1,70 € (arrondir chaque quinzaine donnerait 24 × 0,07 € = 1,68 €).
+    #[test]
+    fn arrondi_une_fois_par_an() {
+        let t = Series::new(vec![(Date::ymd(2000, 1, 1), Rate::from_micro(17_000))]);
+        let m = [Mouvement::depart(Date::ymd(2026, 1, 1), Money::from_euros(100))];
+        assert_eq!(simuler(&m, &t, 2026).unwrap()[0].interets, Money::from_cents(170));
+    }
+
+    /// Demi-centime : 0,25 € à 2 % toute l'année = 0,5 centime, arrondi à 1 centime ; 0,24 € donne 0.
+    #[test]
+    fn arrondi_du_demi_centime() {
+        let t = taux_fixe(2);
+        let un = |c| {
+            simuler(&[Mouvement::depart(Date::ymd(2026, 1, 1), Money::from_cents(c))], &t, 2026).unwrap()[0].interets
+        };
+        assert_eq!(un(25), Money::from_cents(1));
+        assert_eq!(un(24), Money::ZERO);
+    }
+
+    /// Changement de taux au 1er février 2025 (3 % → 2,40 %) puis au 1er août (→ 1,70 %), avec les taux officiels :
+    /// la quinzaine du 16 au 31 janvier est payée à 3 %, celle du 1er février à 2,40 %.
+    /// 24 000 € à partir du 16/01/2025 : 24 000 × (1 × 3 + 12 × 2,4 + 10 × 1,7) / 2 400 = 488,00 €.
+    #[test]
+    fn changement_de_taux_au_debut_de_quinzaine() {
+        let p = crate::params::embarque::livret_a();
+        let m = [Mouvement::depart(Date::ymd(2025, 1, 16), Money::from_euros(24_000))];
+        assert_eq!(simuler(&m, &p.taux, 2025).unwrap()[0].interets, Money::from_euros(488));
+    }
+
+    #[test]
+    fn montant_demesure_refuse() {
+        let t = taux_fixe(2);
+        let trop = [Mouvement::depot(Date::ymd(2026, 1, 1), MONTANT_MAX + Money::from_cents(1))];
+        assert!(matches!(simuler(&trop, &t, 2026), Err(LivretError::MontantInvalide(_))));
+        let max = [Mouvement::depot(Date::ymd(2026, 1, 1), MONTANT_MAX)];
+        assert!(simuler(&max, &t, 2026).is_ok());
     }
 }

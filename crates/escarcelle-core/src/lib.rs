@@ -35,6 +35,29 @@ pub use rate::Rate;
 /// `den` doit être strictement positif.
 pub(crate) fn div_round(num: i128, den: i128) -> i64 {
     debug_assert!(den > 0);
-    let q = if num >= 0 { (num + den / 2) / den } else { (num - den / 2) / den };
-    q as i64
+    let q = if num >= 0 { num.saturating_add(den / 2) / den } else { num.saturating_sub(den / 2) / den };
+    // Jamais de débordement silencieux : un résultat hors de i64 est borné (les saisies sont limitées bien avant).
+    q.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+}
+
+#[cfg(test)]
+mod tests_arrondi {
+    use super::div_round;
+
+    /// Arrondi au plus proche, la moitié s'éloignant de zéro (0,5 centime → 1 centime).
+    #[test]
+    fn arrondi_au_plus_proche() {
+        assert_eq!(div_round(4, 10), 0);
+        assert_eq!(div_round(5, 10), 1);
+        assert_eq!(div_round(15, 10), 2);
+        assert_eq!(div_round(-4, 10), 0);
+        assert_eq!(div_round(-5, 10), -1);
+        assert_eq!(div_round(0, 7), 0);
+    }
+
+    #[test]
+    fn arrondi_sans_debordement() {
+        assert_eq!(div_round(i128::MAX, 1), i64::MAX);
+        assert_eq!(div_round(i128::MIN, 1), i64::MIN);
+    }
 }

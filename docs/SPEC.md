@@ -122,7 +122,7 @@ L'utilisateur saisit ce qu'il détient : **titre, quantité, PRU** (le prix de r
 | Dividendes français | Encaissés sans impôt |
 | Dividendes étrangers | Retenue à la source du pays, **perdue** (aucun impôt français sur lequel l'imputer) |
 | Plafond | 150 000 € de versements (non contrôlé : Escarcelle suit des lignes, pas les versements) |
-| Saisie | Quantité positive (un milliard de titres au plus), PRU entre 0 et 1 000 000 € |
+| Saisie | Quantité positive (dix millions de titres au plus), PRU entre 0 et 1 000 000 € |
 
 ### 5.2 Recherche de titres
 
@@ -378,7 +378,7 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 
 ### 8.5 Qualité et stabilité
 
-- `cargo test` à la racine : 74 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
+- `cargo test` à la racine : 80 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
 - `tests/robustesse.rs` : entrées vides, courtes, constantes ou mal formées (analyse technique, chandeliers, dividendes, ISIN, dates) et simulation des livrets pour toute date depuis le début de l'historique des taux ; aucune fonction ne doit planter, et les indicateurs gardent la longueur de l'historique.
 - `cargo test` dans `app/src-tauri` : 23 tests — historique normalisé des livrets, sauvegarde chiffrée (aller-retour, altération d'un octet, mauvais mot de passe, en-tête démesuré, vecteur de référence indépendant), intérêts année par année, solde de départ, contrôle du plafond et du solde à la date de valeur, base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
 - Intégration continue (GitHub Actions) à chaque envoi : `cargo fmt --check`, `cargo clippy -D warnings`, tests du cœur sous Linux et avec Rust 1.75 (version minimale), build de l'interface et tests de l'application sous Windows.
@@ -386,6 +386,8 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
   - aucune commande ne garde le verrou de la base pendant une requête réseau (vérifié par le compilateur : les commandes asynchrones doivent être `Send`) ;
   - si une commande plante en tenant le verrou, il est récupéré au lieu de bloquer toutes les commandes suivantes ;
   - toute saisie est revérifiée côté Rust (montants, quantités, dates, pays, symboles), même quand l'interface l'a déjà contrôlée ;
+  - limites métier contre les débordements d'entiers : 10 000 000 € par opération de livret, 10 millions de titres et 1 000 000 € par titre dans le PEA ; l'arrondi est borné au lieu de déborder ;
+  - arrondi des intérêts au centime le plus proche, une fois par an (testé : demi-centime, arrondi annuel contre arrondi par quinzaine, changement de taux au début d'une quinzaine) ;
   - chaque appel de l'interface affiche son erreur au lieu de l'ignorer ; les réponses d'une recherche, d'un conseil ou d'une courbe dépassées par une demande plus récente sont ignorées ;
   - les listes affichées ont des clés uniques (une clé en double fait planter un composant Svelte).
 - Règle : pas de code mort. Une fonction qui n'est pas dans le menu n'a pas de code dans le dépôt.
