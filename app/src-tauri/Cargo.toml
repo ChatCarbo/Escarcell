@@ -1,7 +1,7 @@
 [package]
 name = "escarcelle-app"
 description = "Application de bureau Escarcelle (Tauri v2)"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["ChatCarbo"]
 license = "GPL-3.0-or-later"
@@ -19,4 +19,9 @@ rusqlite = { version = "0.32", features = ["bundled", "backup"] }
 tauri-plugin-dialog = "2"
 thiserror = "2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# Sauvegarde chiffrée (0.4) : bibliothèques RustCrypto, aucun algorithme maison.
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+getrandom = "0.2"
+zeroize = "1"
 escarcelle-core = { path = "../../crates/escarcelle-core" }

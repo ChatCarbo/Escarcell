@@ -156,6 +156,13 @@ pub fn verifier_depot(solde: Money, depot: Money, plafond: Money) -> Result<(), 
     }
 }
 
+/// Intérêts maximaux d'une année : ceux d'un livret resté au plafond du 1er janvier au 31 décembre
+/// (24 quinzaines, chacune au taux de son premier jour, arrondi au centime une fois).
+pub fn interets_maximum(plafond: Money, taux: &Series<Rate>, annee: i32) -> Result<Money, LivretError> {
+    let m = [Mouvement::depart(Date::ymd(annee, 1, 1), plafond)];
+    Ok(simuler(&m, taux, annee)?.first().map(|a| a.interets).unwrap_or(Money::ZERO))
+}
+
 /// Mouvement impossible à la date où il est daté.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Anomalie {

@@ -276,13 +276,19 @@ Une **synthèse** résume l'ensemble : plutôt à la hausse, plutôt à la baiss
 
 Tout se passe dans **Paramètres**, en haut à droite de la fenêtre.
 
-### Sauvegarder
+### Sauvegarder (chiffré)
 
-Cliquez sur **Sauvegarder Escarcelle…** et choisissez où enregistrer le fichier (`escarcelle-2026-11-23.db`) : clé USB, disque externe, dossier synchronisé… Une sauvegarde par mois est un bon rythme, et une avant chaque mise à jour d'Escarcelle.
+1. Dans **Sauvegarde chiffrée**, choisissez un mot de passe d'au moins 12 caractères (une phrase de quatre ou cinq mots est facile à retenir et solide), tapez-le deux fois.
+2. Cochez **J'ai compris qu'un mot de passe oublié rend la sauvegarde illisible**.
+3. Cliquez sur **Sauvegarder (chiffré)…** et choisissez l'emplacement : le fichier `escarcelle-2026-11-25-2130.escarcelle` peut aller sur une clé USB ou dans un dossier synchronisé (OneDrive, Google Drive…), son contenu est illisible sans le mot de passe.
+
+> **Le mot de passe n'est conservé nulle part.** Si vous l'oubliez, personne ne peut ouvrir la sauvegarde. Notez-le dans un gestionnaire de mots de passe.
+
+Une sauvegarde par mois est un bon rythme, et une avant chaque mise à jour d'Escarcelle. Une copie **non chiffrée** (`.db`) reste possible avec le lien sous le bouton.
 
 ### Restaurer
 
-Cliquez sur **Choisir une sauvegarde…**, sélectionnez le fichier, puis confirmez. **Toutes les données actuelles sont remplacées** par celles de la sauvegarde. Escarcelle vérifie d'abord qu'il s'agit bien d'une sauvegarde Escarcelle.
+Cliquez sur **Choisir une sauvegarde…** et sélectionnez un fichier `.escarcelle` (tapez son mot de passe, puis **Ouvrir**) ou `.db`. Escarcelle affiche la date, l'ordinateur et la version de la sauvegarde ; confirmez avec **Oui, restaurer**. **Toutes les données actuelles sont remplacées**, mais Escarcelle en fait d'abord une copie de sécurité dans son dossier de données (`escarcelle-avant-restauration-….db`, les cinq dernières sont gardées). Une sauvegarde faite avec une version plus récente d'Escarcelle est refusée : mettez d'abord Escarcelle à jour.
 
 ### Tout effacer
 

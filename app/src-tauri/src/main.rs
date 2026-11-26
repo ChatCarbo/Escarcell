@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod alertes;
+mod chiffrement;
 mod commands;
 mod cours;
 mod livrets;
@@ -65,6 +66,8 @@ fn main() {
             reglages::emplacement_donnees,
             reglages::sauvegarder,
             reglages::restaurer,
+            reglages::sauvegarder_chiffre,
+            reglages::lire_sauvegarde,
             reglages::tout_effacer,
             reglages::enregistrer_export,
             livrets::livrets,

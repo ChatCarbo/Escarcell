@@ -32,7 +32,9 @@ export const api = {
   // Réglages
   emplacementDonnees: () => invoke('emplacement_donnees'),
   sauvegarder: (chemin) => invoke('sauvegarder', { chemin }),
-  restaurer: (chemin) => invoke('restaurer', { chemin }),
+  restaurer: (chemin, motDePasse) => invoke('restaurer', { chemin, motDePasse: motDePasse || null }),
+  sauvegarderChiffre: (chemin, motDePasse) => invoke('sauvegarder_chiffre', { chemin, motDePasse }),
+  lireSauvegarde: (chemin, motDePasse) => invoke('lire_sauvegarde', { chemin, motDePasse: motDePasse || null }),
   toutEffacer: (confirmation) => invoke('tout_effacer', { confirmation }),
 };
 

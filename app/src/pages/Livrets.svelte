@@ -147,11 +147,13 @@
       </div>
       {#if l.compte_id === null}
         <p class="vide">Vous n'avez pas ce livret.</p>
+        <span class="discret petit">Au plafond toute l'année {new Date().getFullYear()} : {euros(l.interets_max_cents)} d'intérêts</span>
         <button onclick={() => ouvrir(l.type)}>J'ai un {l.nom}</button>
       {:else}
         <strong class="solde">{euros(l.solde_cents)}</strong>
         <div class="jauge"><div style="width:{Math.min(100, (l.solde_cents / l.plafond_cents) * 100)}%"></div></div>
         <span class="discret petit">{euros(l.solde_cents)} / {euros(l.plafond_cents)} · intérêts {new Date().getFullYear()} : {euros(l.interets_estimes_cents)}</span>
+        <span class="discret petit" title="Livret resté au plafond du 1er janvier au 31 décembre, aux taux de l'année">Maximum possible {new Date().getFullYear()} : {euros(l.interets_max_cents)}</span>
         {#if l.annees.length}
           <span class="petit">Intérêts cumulés depuis {l.annees[0].annee} : <b class="positif">{euros(l.interets_cumules_cents)}</b></span>
           <details class="petit">

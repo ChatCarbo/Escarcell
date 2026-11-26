@@ -7,7 +7,6 @@
   let emplacement = $state('');
   let message = $state(null); // { classe, texte }
   let confirmation = $state('');
-  let restaurationEnAttente = $state(null);
 
   let retenues = $state([]);
   let editionRetenue = $state(null); // { pays, valeur }
@@ -64,7 +63,49 @@
   }
 
   const aujourdhui = () => new Date().toISOString().slice(0, 10);
+  const horodatage = () => {
+    const d = new Date();
+    const z = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`;
+  };
   const FILTRES = [{ name: 'Sauvegarde Escarcelle', extensions: ['db'] }];
+  const FILTRES_CHIFFRES = [{ name: 'Sauvegarde chiffrée Escarcelle', extensions: ['escarcelle'] }];
+  const FILTRES_TOUS = [{ name: 'Sauvegarde Escarcelle', extensions: ['escarcelle', 'db'] }];
+  const LONGUEUR_MIN = 12;
+
+  // Sauvegarde chiffrée
+  let mdp = $state('');
+  let mdp2 = $state('');
+  let compris = $state(false);
+  let enCours = $state(false);
+
+  /** Robustesse indicative : longueur et variété des caractères. */
+  const robustesse = $derived.by(() => {
+    if (!mdp) return null;
+    const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^a-zA-Z0-9]/].filter((r) => r.test(mdp)).length;
+    const n = [...mdp].length;
+    if (n < LONGUEUR_MIN) return { niveau: 'faible', texte: `trop court (${n} / ${LONGUEUR_MIN} caractères minimum)` };
+    if (n >= 20 || (n >= 14 && classes >= 3)) return { niveau: 'fort', texte: 'solide' };
+    return { niveau: 'moyen', texte: 'correct ; plus long, c\'est mieux (une phrase de 4 ou 5 mots par exemple)' };
+  });
+  const mdpValide = $derived([...mdp].length >= LONGUEUR_MIN && mdp === mdp2 && compris);
+
+  async function sauvegarderChiffre() {
+    message = null;
+    const chemin = await save({ defaultPath: `escarcelle-${horodatage()}.escarcelle`, filters: FILTRES_CHIFFRES });
+    if (!chemin) return;
+    enCours = true;
+    try {
+      await api.sauvegarderChiffre(chemin, mdp);
+      message = { classe: 'ok', texte: `Sauvegarde chiffrée enregistrée : ${chemin}` };
+      mdp = '';
+      mdp2 = '';
+    } catch (e) {
+      message = { classe: 'alerte', texte: String(e) };
+    } finally {
+      enCours = false;
+    }
+  }
 
   async function sauvegarder() {
     message = null;
@@ -78,20 +119,39 @@
     }
   }
 
+  // Restauration en deux temps : lecture (et déchiffrement) pour afficher la sauvegarde, puis confirmation.
+  let restauration = $state(null); // { chemin, chiffree, mdp, info }
+
   async function choisirRestauration() {
     message = null;
-    const chemin = await open({ multiple: false, directory: false, filters: FILTRES });
-    if (chemin) restaurationEnAttente = chemin;
+    const chemin = await open({ multiple: false, directory: false, filters: FILTRES_TOUS });
+    if (!chemin) return;
+    const chiffree = String(chemin).toLowerCase().endsWith('.escarcelle');
+    restauration = { chemin, chiffree, mdp: '', info: null };
+    if (!chiffree) await lireRestauration();
   }
 
-  async function restaurer() {
+  async function lireRestauration() {
+    enCours = true;
     try {
-      await api.restaurer(restaurationEnAttente);
-      message = { classe: 'ok', texte: 'Données restaurées. Les autres pages afficheront les données de la sauvegarde.' };
+      restauration.info = await api.lireSauvegarde(restauration.chemin, restauration.chiffree ? restauration.mdp : null);
     } catch (e) {
       message = { classe: 'alerte', texte: String(e) };
     } finally {
-      restaurationEnAttente = null;
+      enCours = false;
+    }
+  }
+
+  async function restaurer() {
+    enCours = true;
+    try {
+      await api.restaurer(restauration.chemin, restauration.chiffree ? restauration.mdp : null);
+      message = { classe: 'ok', texte: 'Données restaurées. Une copie de sécurité des données précédentes a été faite dans le dossier de données.' };
+      restauration = null;
+    } catch (e) {
+      message = { classe: 'alerte', texte: String(e) };
+    } finally {
+      enCours = false;
     }
   }
 
@@ -110,19 +170,52 @@
 {#if message}<p class="message {message.classe}">{message.texte}</p>{/if}
 
 <section class="carte">
-  <h3>Sauvegarder</h3>
-  <p>Toutes vos données (livrets, lignes du PEA, dividendes, assemblées générales, réglages) tiennent dans un seul fichier. Enregistrez-en une copie où vous voulez : clé USB, disque externe, dossier synchronisé.</p>
-  <button class="principal" onclick={sauvegarder}>Sauvegarder Escarcelle…</button>
+  <h3>Sauvegarde chiffrée</h3>
+  <p>
+    Toutes vos données (livrets, lignes du PEA, dividendes, assemblées générales, réglages) dans un seul fichier
+    <code>.escarcelle</code>, chiffré par un mot de passe : vous pouvez le placer sur une clé USB ou dans un dossier
+    synchronisé (OneDrive, Google Drive…) sans que son contenu soit lisible.
+  </p>
+  <p class="message attention">
+    <b>Sans le mot de passe, la sauvegarde est perdue</b> : Escarcelle ne le conserve nulle part et personne ne peut le
+    retrouver. Notez-le dans un endroit sûr (gestionnaire de mots de passe).
+  </p>
+  <label>Mot de passe ({LONGUEUR_MIN} caractères minimum)<input type="password" autocomplete="new-password" bind:value={mdp} /></label>
+  {#if robustesse}<p class="petit" class:negatif={robustesse.niveau === 'faible'} class:positif={robustesse.niveau === 'fort'}>Robustesse : {robustesse.texte}</p>{/if}
+  <label>Mot de passe, une seconde fois<input type="password" autocomplete="new-password" bind:value={mdp2} /></label>
+  {#if mdp2 && mdp !== mdp2}<p class="petit negatif">Les deux mots de passe sont différents.</p>{/if}
+  <label class="petit"><input type="checkbox" bind:checked={compris} /> J'ai compris qu'un mot de passe oublié rend la sauvegarde illisible.</label>
+  <button class="principal" onclick={sauvegarderChiffre} disabled={!mdpValide || enCours}>{enCours ? 'Chiffrement…' : 'Sauvegarder (chiffré)…'}</button>
+  <p class="discret petit">
+    Chiffrement XChaCha20-Poly1305, clé dérivée du mot de passe par Argon2id. Sauvegarde non chiffrée (fichier .db lisible par tous) :
+    <button class="discret" onclick={sauvegarder}>enregistrer une copie non chiffrée…</button>
+  </p>
   <p class="discret petit">Fichier de données actuel : {emplacement}</p>
 </section>
 
 <section class="carte">
   <h3>Restaurer une sauvegarde</h3>
-  <p>Remplace toutes les données actuelles par celles d'une sauvegarde.</p>
-  {#if restaurationEnAttente}
-    <p class="message attention">Remplacer toutes les données actuelles par <b>{restaurationEnAttente}</b> ? Pensez à sauvegarder d'abord si besoin.</p>
-    <button class="principal" onclick={restaurer}>Oui, restaurer</button>
-    <button onclick={() => (restaurationEnAttente = null)}>Annuler</button>
+  <p>Remplace toutes les données actuelles par celles d'une sauvegarde chiffrée (.escarcelle) ou non (.db). Une copie de sécurité des données actuelles est faite automatiquement avant.</p>
+  {#if restauration}
+    <p class="discret petit">Fichier : {restauration.chemin}</p>
+    {#if restauration.chiffree && !restauration.info}
+      <label>Mot de passe de la sauvegarde<input type="password" bind:value={restauration.mdp} onkeydown={(e) => e.key === 'Enter' && lireRestauration()} /></label>
+      <button class="principal" onclick={lireRestauration} disabled={!restauration.mdp || enCours}>{enCours ? 'Déchiffrement…' : 'Ouvrir'}</button>
+      <button onclick={() => (restauration = null)}>Annuler</button>
+    {:else if restauration.info}
+      <p class="message attention">
+        {#if restauration.info.chiffree}
+          Sauvegarde du <b>{restauration.info.cree_le} (UTC)</b>{restauration.info.appareil ? `, faite sur ${restauration.info.appareil}` : ''}, avec Escarcelle {restauration.info.version_escarcelle}.
+        {:else}
+          Sauvegarde non chiffrée.
+        {/if}
+        Remplacer toutes les données actuelles par cette sauvegarde ?
+      </p>
+      <button class="principal" onclick={restaurer} disabled={enCours}>Oui, restaurer</button>
+      <button onclick={() => (restauration = null)}>Annuler</button>
+    {:else}
+      <button onclick={() => (restauration = null)}>Annuler</button>
+    {/if}
   {:else}
     <button onclick={choisirRestauration}>Choisir une sauvegarde…</button>
   {/if}

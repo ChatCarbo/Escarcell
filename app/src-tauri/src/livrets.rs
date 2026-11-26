@@ -4,7 +4,9 @@
 use escarcelle_core::conseil_livret::{
     conseil_retrait, conseil_versement, repartir_retrait, repartir_versement, LivretDetenu,
 };
-use escarcelle_core::livret::{controler, debut_quinzaine, simuler, AnneeLivret, Anomalie, Mouvement, Sens};
+use escarcelle_core::livret::{
+    controler, debut_quinzaine, interets_maximum, simuler, AnneeLivret, Anomalie, Mouvement, Sens,
+};
 use escarcelle_core::params::{embarque, LivretParams};
 use escarcelle_core::{Date, Money};
 use serde::Serialize;
@@ -49,6 +51,8 @@ pub struct LivretDto {
     pub plafond_cents: i64,
     pub taux_micro: i64,
     pub interets_estimes_cents: i64,
+    /// Intérêts maximaux de l'année en cours : livret resté au plafond du 1er janvier au 31 décembre.
+    pub interets_max_cents: i64,
     /// Intérêts capitalisés depuis la première opération, plus ceux estimés de l'année en cours.
     pub interets_cumules_cents: i64,
     /// Détail année par année, de la première année concernée à l'année en cours.
@@ -210,6 +214,7 @@ pub fn tous(etat: &Etat) -> Resultat<Vec<LivretDto>> {
             plafond_cents: p.plafond.cents(),
             taux_micro: taux.micro(),
             interets_estimes_cents: interets.cents(),
+            interets_max_cents: interets_maximum(p.plafond, &p.taux, jour.year()).map_err(err)?.cents(),
             interets_cumules_cents: annees.iter().map(|a| a.interets.cents()).sum(),
             annees: annees
                 .iter()
@@ -417,9 +422,9 @@ mod tests {
     fn interets_annee_par_annee_avec_les_taux_de_chaque_annee() {
         let ops = vec![op(1, "2025-01-01", "VERSEMENT", 22_950)];
         let (solde, annees) = simulation("LIVRET_A", &ops, "2026-11-25".parse().unwrap()).unwrap();
-        assert_eq!(solde, Money::from_cents(23_416_65));
-        assert_eq!(annees[0].interets, Money::from_cents(466_65));
-        assert_eq!(annees[1].interets, Money::from_cents(374_67));
+        assert_eq!(solde, Money::from_cents(2_341_665));
+        assert_eq!(annees[0].interets, Money::from_cents(46_665));
+        assert_eq!(annees[1].interets, Money::from_cents(37_467));
         assert_eq!(annees.iter().map(|a| a.interets.cents()).sum::<i64>(), 84_132);
         // Taux moyens : 2025 = (2 × 3 + 12 × 2,4 + 10 × 1,7) / 24 ≈ 2,16 % ; 2026 = (12 × 1,7 + 12 × 1,5) / 24 = 1,60 %.
         assert_eq!(taux_moyen("LIVRET_A", 2026), 16_000);

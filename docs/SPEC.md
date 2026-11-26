@@ -1,6 +1,6 @@
 # Escarcelle — Spécification
 
-> Version du document : 12 — 25/11/2026 — version 0.3
+> Version du document : 13 — 25/11/2026 — version 0.4 en cours (lot 1 : sauvegarde chiffrée ; livrets : intérêts cumulés et maximaux)
 > Auteur : ChatCarbo — Licence GPL-3.0-or-later
 > Ce document décrit la **V1** telle qu'elle est développée, puis ce qui est prévu ensuite.
 
@@ -73,7 +73,7 @@ Camembert par enveloppe (Livret A, LDDS, LEP, PEA), couleurs fixes. Bloc **« À
 
 Calcul : `intérêts(quinzaine) = max(0, solde rémunéré) × taux annuel / 24`.
 
-Chaque carte de livret affiche les **intérêts cumulés** depuis la première opération (intérêts capitalisés + estimation de l'année en cours) et, dépliable, le **détail par année** : taux moyen de l'année (moyenne des taux des 24 quinzaines), intérêts, solde au 31 décembre.
+Chaque carte de livret affiche les **intérêts maximaux de l'année** (livret resté au plafond du 1er janvier au 31 décembre : en 2026, Livret A 367,20 €, LDDS 192,00 €, LEP 251,67 €), les **intérêts cumulés** depuis la première opération (intérêts capitalisés + estimation de l'année en cours) et, dépliable, le **détail par année** : taux moyen de l'année (moyenne des taux des 24 quinzaines), intérêts, solde au 31 décembre.
 
 ### 4.2 Saisie
 
@@ -283,11 +283,28 @@ Aucune autre connexion. Escarcelle communique donc avec l'extérieur pour lire d
 
 | Action | Fonctionnement |
 | :--- | :--- |
-| Sauvegarder | Copie cohérente de toute la base dans un fichier choisi par l'utilisateur (`escarcelle-AAAA-MM-JJ.db`) ; la copie est écrite dans un fichier temporaire puis renommée, pour qu'un échec ne détruise pas une ancienne sauvegarde du même nom |
-| Restaurer | Vérifie que le fichier est une sauvegarde Escarcelle, demande confirmation, remplace les données, met le schéma à jour si la sauvegarde est ancienne |
+| Sauvegarde chiffrée (0.4) | Fichier `escarcelle-AAAA-MM-JJ-HHMM.escarcelle` chiffré par mot de passe (§7.2) ; mot de passe de 12 caractères minimum, saisi deux fois, avec indicateur de robustesse et case « j'ai compris qu'un oubli rend la sauvegarde illisible » |
+| Sauvegarde non chiffrée | Copie cohérente de toute la base (`escarcelle-AAAA-MM-JJ.db`), toujours proposée en lien secondaire |
+| Restaurer | Fichier `.escarcelle` (mot de passe demandé) ou `.db`. Affiche la date, l'appareil et la version de la sauvegarde, demande confirmation, fait une **copie de sécurité** de la base actuelle (`escarcelle-avant-restauration-AAAAMMJJ-HHMMSS.db` dans le dossier de données, 5 dernières conservées), remplace les données, met le schéma à jour si la sauvegarde est ancienne et **refuse** une sauvegarde venant d'une version plus récente |
+| Écritures | Toute sauvegarde est écrite dans un fichier temporaire puis renommée : un échec ne détruit pas une ancienne sauvegarde du même nom |
 | Tout effacer | Supprime toutes les données après saisie du mot EFFACER ; le schéma est conservé |
 | Retenues à la source | Tableau des pays : taux en vigueur, taux par défaut, modification et retour à la valeur par défaut |
 | Nouvelles versions | Vérification au démarrage (case à cocher) et « Vérifier maintenant » |
+
+### 7.2 Format de la sauvegarde chiffrée (`.escarcelle`)
+
+| Partie | Contenu | Chiffré |
+| :--- | :--- | :--- |
+| En-tête (57 octets) | « ESCA », version du format (1), paramètres Argon2id m (Kio), t, p en u32 petit-boutiste, sel (16 octets), nonce (24 octets) | Non, mais authentifié (données associées) |
+| Métadonnées | `cree_le` (UTC), `version_escarcelle`, `version_schema`, `appareil`, une par ligne `clé=valeur` | Oui |
+| Données | Copie cohérente de la base SQLite (`VACUUM INTO`) | Oui |
+
+- Clé de 32 octets dérivée par **Argon2id** (64 Mio, 3 itérations, 1 fil pour les nouvelles sauvegardes ; paramètres lus dans l'en-tête, bornés à 1 Gio, 10 itérations, 8 fils pour qu'un en-tête modifié ne bloque pas la machine).
+- Chiffrement authentifié **XChaCha20-Poly1305** : un octet modifié, n'importe où, est détecté.
+- Bibliothèques RustCrypto (`argon2`, `chacha20poly1305`), aléa du système (`getrandom`), clé et données en clair effacées de la mémoire après usage (`zeroize`).
+- Mot de passe faux et fichier altéré donnent le même message, sans dire lequel.
+- Le format est vérifié par un **vecteur de référence produit par une implémentation indépendante** (Python, bibliothèque `cryptography`), en plus des tests d'aller-retour.
+- Écart à la spécification 0.4 : les données ne sont pas compressées (une base Escarcelle pèse quelques centaines de Kio) ; la sauvegarde automatique n'est pas encore faite (question ouverte : mémoriser le mot de passe dans le coffre Windows).
 
 ### 7.1 Exports
 
@@ -361,9 +378,9 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 
 ### 8.5 Qualité et stabilité
 
-- `cargo test` à la racine : 72 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
+- `cargo test` à la racine : 73 tests du cœur de calcul, sans réseau (livrets, quinzaines, conseils, analyse technique, chandeliers et figures, dividendes, ISIN). Deux fichiers reprennent des sources officielles citées en tête : `tests/reference.rs` (fiche F2365 de service-public.fr) et `tests/fiscalite.rs` (BOFiP sur le PEA).
 - `tests/robustesse.rs` : entrées vides, courtes, constantes ou mal formées (analyse technique, chandeliers, dividendes, ISIN, dates) et simulation des livrets pour toute date depuis le début de l'historique des taux ; aucune fonction ne doit planter, et les indicateurs gardent la longueur de l'historique.
-- `cargo test` dans `app/src-tauri` : 14 tests — intérêts année par année, solde de départ, contrôle du plafond et du solde à la date de valeur, base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
+- `cargo test` dans `app/src-tauri` : 22 tests — sauvegarde chiffrée (aller-retour, altération d'un octet, mauvais mot de passe, en-tête démesuré, vecteur de référence indépendant), intérêts année par année, solde de départ, contrôle du plafond et du solde à la date de valeur, base SQLite (lignes, dividendes, événements), migration d'une base 0.2 avec CTO et PEA-PME, sauvegarde et restauration, ISIN, symboles, places et pays, dates, numéros de version.
 - Intégration continue (GitHub Actions) à chaque envoi : `cargo fmt --check`, `cargo clippy -D warnings`, tests du cœur sous Linux et avec Rust 1.75 (version minimale), build de l'interface et tests de l'application sous Windows.
 - Règles de robustesse de l'application :
   - aucune commande ne garde le verrou de la base pendant une requête réseau (vérifié par le compilateur : les commandes asynchrones doivent être `Send`) ;

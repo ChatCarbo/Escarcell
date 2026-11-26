@@ -120,4 +120,16 @@ mod tests {
         assert_eq!(lep.taux.at(Date::ymd(2023, 5, 1)), Some(&Rate::from_micro(61_000)));
         assert_eq!(lep.taux.at(Date::ymd(2024, 9, 1)), Some(&Rate::from_micro(40_000)));
     }
+
+    /// Intérêts maximaux de 2026 (livret au plafond toute l'année), calculés à la main :
+    /// Livret A 22 950 € × (12 × 1,70 % + 12 × 1,50 %) / 24 = 367,20 € ; LDDS 12 000 € → 192,00 € ;
+    /// LEP 10 000 € × (2 × 2,70 % + 22 × 2,50 %) / 24 = 251,67 €.
+    #[test]
+    fn interets_maximum_2026() {
+        use crate::livret::interets_maximum;
+        let cas = [(embarque::livret_a(), 36_720), (embarque::ldds(), 19_200), (embarque::lep(), 25_167)];
+        for (p, attendu) in cas {
+            assert_eq!(interets_maximum(p.plafond, &p.taux, 2026).unwrap(), crate::Money::from_cents(attendu));
+        }
+    }
 }

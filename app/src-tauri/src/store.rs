@@ -223,6 +223,22 @@ impl Store {
         Ok(())
     }
 
+    /// Version du schéma que cette version d'Escarcelle sait lire (nombre de migrations).
+    pub fn version_schema_connue() -> i64 {
+        MIGRATIONS.len() as i64
+    }
+
+    /// Version du schéma de la base ouverte.
+    pub fn version_schema(&self) -> Result<i64, StoreError> {
+        Ok(self.conn.pragma_query_value(None, "user_version", |r| r.get(0))?)
+    }
+
+    /// Version du schéma d'un fichier de sauvegarde (None si illisible).
+    pub fn version_schema_fichier(chemin: &Path) -> Option<i64> {
+        let c = Connection::open_with_flags(chemin, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).ok()?;
+        c.pragma_query_value(None, "user_version", |r| r.get(0)).ok()
+    }
+
     /// Vérifie qu'un fichier est bien une sauvegarde Escarcelle.
     pub fn est_sauvegarde(chemin: &Path) -> bool {
         let Ok(c) = Connection::open_with_flags(chemin, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY) else {
