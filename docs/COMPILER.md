@@ -5,7 +5,7 @@
 ```sh
 cargo fmt --check                                        # mise en forme
 cargo clippy --all-targets -- -D warnings                # analyse statique
-cargo test                                               # 80 tests
+cargo test                                               # 91 tests
 ```
 
 ## 2. L'application de bureau
