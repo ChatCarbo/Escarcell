@@ -180,12 +180,16 @@
     <b>Sans le mot de passe, la sauvegarde est perdue</b> : Escarcelle ne le conserve nulle part et personne ne peut le
     retrouver. Notez-le dans un endroit sûr (gestionnaire de mots de passe).
   </p>
+  <div class="champs">
   <label>Mot de passe ({LONGUEUR_MIN} caractères minimum)<input type="password" autocomplete="new-password" bind:value={mdp} /></label>
   {#if robustesse}<p class="petit" class:negatif={robustesse.niveau === 'faible'} class:positif={robustesse.niveau === 'fort'}>Robustesse : {robustesse.texte}</p>{/if}
   <label>Mot de passe, une seconde fois<input type="password" autocomplete="new-password" bind:value={mdp2} /></label>
   {#if mdp2 && mdp !== mdp2}<p class="petit negatif">Les deux mots de passe sont différents.</p>{/if}
-  <label class="petit"><input type="checkbox" bind:checked={compris} /> J'ai compris qu'un mot de passe oublié rend la sauvegarde illisible.</label>
-  <button class="principal" onclick={sauvegarderChiffre} disabled={!mdpValide || enCours}>{enCours ? 'Chiffrement…' : 'Sauvegarder (chiffré)…'}</button>
+  <label class="case"><input type="checkbox" bind:checked={compris} /> J'ai compris qu'un mot de passe oublié rend la sauvegarde illisible.</label>
+  </div>
+  <div class="actions">
+    <button class="principal" onclick={sauvegarderChiffre} disabled={!mdpValide || enCours}>{enCours ? 'Chiffrement…' : 'Sauvegarder (chiffré)…'}</button>
+  </div>
   <p class="discret petit">
     Chiffrement XChaCha20-Poly1305, clé dérivée du mot de passe par Argon2id. Sauvegarde non chiffrée (fichier .db lisible par tous) :
     <button class="discret" onclick={sauvegarder}>enregistrer une copie non chiffrée…</button>
@@ -199,9 +203,13 @@
   {#if restauration}
     <p class="discret petit">Fichier : {restauration.chemin}</p>
     {#if restauration.chiffree && !restauration.info}
-      <label>Mot de passe de la sauvegarde<input type="password" bind:value={restauration.mdp} onkeydown={(e) => e.key === 'Enter' && lireRestauration()} /></label>
-      <button class="principal" onclick={lireRestauration} disabled={!restauration.mdp || enCours}>{enCours ? 'Déchiffrement…' : 'Ouvrir'}</button>
-      <button onclick={() => (restauration = null)}>Annuler</button>
+      <div class="champs">
+        <label>Mot de passe de la sauvegarde<input type="password" bind:value={restauration.mdp} onkeydown={(e) => e.key === 'Enter' && lireRestauration()} /></label>
+      </div>
+      <div class="actions">
+        <button class="principal" onclick={lireRestauration} disabled={!restauration.mdp || enCours}>{enCours ? 'Déchiffrement…' : 'Ouvrir'}</button>
+        <button onclick={() => (restauration = null)}>Annuler</button>
+      </div>
     {:else if restauration.info}
       <p class="message attention">
         {#if restauration.info.chiffree}
@@ -211,8 +219,10 @@
         {/if}
         Remplacer toutes les données actuelles par cette sauvegarde ?
       </p>
-      <button class="principal" onclick={restaurer} disabled={enCours}>Oui, restaurer</button>
-      <button onclick={() => (restauration = null)}>Annuler</button>
+      <div class="actions">
+        <button class="principal" onclick={restaurer} disabled={enCours}>Oui, restaurer</button>
+        <button onclick={() => (restauration = null)}>Annuler</button>
+      </div>
     {:else}
       <button onclick={() => (restauration = null)}>Annuler</button>
     {/if}
@@ -258,7 +268,7 @@
 
 <section class="carte">
   <h3>Nouvelles versions</h3>
-  <label class="case"><input type="checkbox" checked={majAuto} onchange={basculerMajAuto} /> Vérifier au démarrage si une nouvelle version est publiée sur GitHub (désactivé par défaut)</label>
+  <div class="champs" style="max-width: none"><label class="case"><input type="checkbox" checked={majAuto} onchange={basculerMajAuto} /> Vérifier au démarrage si une nouvelle version est publiée sur GitHub (désactivé par défaut)</label></div>
   <p><button onclick={verifier} disabled={verification}>{verification ? 'Vérification…' : 'Vérifier maintenant'}</button></p>
   {#if maj}
     {#if maj.disponible}
@@ -277,6 +287,6 @@
 <section class="carte zone-danger">
   <h3>Tout effacer</h3>
   <p>Supprime définitivement tous les livrets, virements, lignes du PEA, cours, dividendes, AG et réglages. Cette action est irréversible : faites une sauvegarde avant.</p>
-  <label>Tapez EFFACER pour confirmer<input bind:value={confirmation} placeholder="EFFACER" /></label>
+  <div class="champs"><label>Tapez EFFACER pour confirmer<input bind:value={confirmation} placeholder="EFFACER" /></label></div>
   <button class="danger" disabled={confirmation.trim() !== 'EFFACER'} onclick={effacer}>Tout effacer</button>
 </section>

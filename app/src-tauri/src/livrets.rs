@@ -25,7 +25,7 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 
 pub const TYPES: [(&str, &str); 3] = [("LEP", "LEP"), ("LIVRET_A", "Livret A"), ("LDDS", "LDDS")];
 
-fn params(type_: &str) -> LivretParams {
+pub fn params(type_: &str) -> LivretParams {
     match type_ {
         "LEP" => embarque::lep(),
         "LDDS" => embarque::ldds(),

@@ -58,6 +58,18 @@ pub fn ajouter_operation(etat: State<'_, Etat>, mut operation: Operation) -> Res
     // Plafond et solde contrôlés à la date de valeur, avec toutes les opérations du livret.
     let db = etat.db();
     let type_ = type_livret(&db, operation.compte_id)?;
+    // Un solde de départ ne dépasse le plafond que des intérêts capitalisés : au-delà d'une fois et demie le
+    // plafond, c'est presque sûrement une erreur de saisie (un zéro de trop).
+    if operation.type_ == "VALORISATION" {
+        let plafond = crate::livrets::params(&type_).plafond;
+        let max = plafond.cents() / 2 * 3;
+        if operation.montant_cents.unwrap_or(0) > max {
+            return Err(format!(
+                "Un solde de départ ne peut dépasser le plafond ({plafond}) que des intérêts capitalisés : au-delà de {}, vérifiez le montant.",
+                escarcelle_core::Money::from_cents(max)
+            ));
+        }
+    }
     let avant = db.operations(operation.compte_id).map_err(err)?;
     let mut apres = avant.clone();
     apres.push(Operation { id: 0, ..operation.clone() });
