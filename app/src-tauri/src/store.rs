@@ -275,8 +275,25 @@ pub struct Store {
 }
 
 impl Store {
+    /// Ouvre la base et applique les migrations en attente. Avant de migrer une base existante, une copie
+    /// complète est faite à côté (`escarcell-avant-migration-v<version>-AAAAMMJJ-HHMMSS.db`, 5 dernières
+    /// gardées) : sans copie réussie, rien n'est migré.
     pub fn ouvrir(chemin: &Path) -> Result<Self, StoreError> {
         let conn = Connection::open(chemin)?;
+        let version: i64 = conn.pragma_query_value(None, "user_version", |r| r.get(0))?;
+        if version > 0 && version < MIGRATIONS.len() as i64 {
+            let dossier = chemin.parent().map(Path::to_path_buf).unwrap_or_default();
+            let prefixe = format!("escarcell-avant-migration-v{version}-");
+            let horodatage = crate::reglages::horodatage().1;
+            let mut copie = dossier.join(format!("{prefixe}{horodatage}.db"));
+            let mut n = 1;
+            while copie.exists() {
+                n += 1;
+                copie = dossier.join(format!("{prefixe}{horodatage}-{n}.db"));
+            }
+            conn.execute("VACUUM INTO ?1", [copie.to_string_lossy().into_owned()])?;
+            crate::reglages::garder_les_dernieres(&dossier, "escarcell-avant-migration-");
+        }
         Self::initialiser(conn)
     }
 
@@ -870,6 +887,44 @@ mod tests {
         })
         .unwrap();
         assert_eq!(s.evenements().unwrap()[0].type_, "AG");
+    }
+
+    /// Une base à migrer est d'abord copiée telle quelle ; une base à jour ou neuve ne l'est pas.
+    #[test]
+    fn copie_avant_migration() {
+        let dossier = std::env::temp_dir().join(format!("escarcell-test-migration-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dossier);
+        std::fs::create_dir_all(&dossier).unwrap();
+        let chemin = dossier.join("escarcell.db");
+        {
+            let conn = Connection::open(&chemin).unwrap();
+            for sql in &MIGRATIONS[..7] {
+                conn.execute_batch(sql).unwrap();
+            }
+            conn.pragma_update(None, "user_version", 7i64).unwrap();
+        }
+        let s = Store::ouvrir(&chemin).unwrap();
+        assert_eq!(s.version_schema().unwrap(), Store::version_schema_connue());
+        drop(s);
+        let copies: Vec<_> = std::fs::read_dir(&dossier)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.starts_with("escarcell-avant-migration-v7-"))
+            .collect();
+        assert_eq!(copies.len(), 1, "{copies:?}");
+        assert_eq!(Store::version_schema_fichier(&dossier.join(&copies[0])), Some(7));
+        // Rouverte à jour : pas de nouvelle copie.
+        drop(Store::ouvrir(&chemin).unwrap());
+        // Base neuve : pas de copie.
+        drop(Store::ouvrir(&dossier.join("neuve.db")).unwrap());
+        let n = std::fs::read_dir(&dossier)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("avant-migration"))
+            .count();
+        assert_eq!(n, 1);
+        let _ = std::fs::remove_dir_all(&dossier);
     }
 
     /// Base de la version 0.2 avec des lignes de CTO et de PEA-PME : la migration ne garde que le PEA.

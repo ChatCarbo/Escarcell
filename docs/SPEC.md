@@ -1,6 +1,6 @@
 # €scarcell — Spécification
 
-> Version du document : 14 — 26/11/2026 — version 0.4 en cours (lot 1 : sauvegarde chiffrée ; lot 2 : import CSV ; livrets : intérêts cumulés et maximaux)
+> Version du document : 15 — 26/11/2026 — version 0.4 en cours (lot 1 : sauvegarde chiffrée ; lot 2 : import CSV ; livrets : intérêts cumulés et maximaux)
 > Auteur : ChatCarbo — Licence GPL-3.0-or-later
 > Ce document décrit la **V1** telle qu'elle est développée, puis ce qui est prévu ensuite.
 
@@ -350,7 +350,7 @@ Un seul bouton **Importer…** sur la page PEA, à côté d'« Exporter en CSV �
 
 Format CSV : séparateur « ; », virgule décimale, UTF-8 avec BOM, pour une ouverture directe dans Excel ou LibreOffice en français. Images PNG en double résolution, aux couleurs du thème. L'emplacement est choisi par l'utilisateur ; seules les extensions `.csv` et `.png` sont acceptées par la commande d'enregistrement.
 
-L'emplacement du fichier de données est affiché (sous Windows : `%APPDATA%\fr.chatcarbo.escarcell\escarcell.db`). Changement de nom (0.4) : si cette base n'existe pas, celle d'Escarcelle (`fr.chatcarbo.escarcelle\escarcelle.db`, avec son journal) est copiée au démarrage, sans modifier l'original.
+L'emplacement du fichier de données est affiché (sous Windows : `%APPDATA%\fr.chatcarbo.escarcell\escarcell.db`). Avant d'appliquer des migrations à une base existante, copie complète `escarcell-avant-migration-v<version>-AAAAMMJJ-HHMMSS.db` (VACUUM INTO, 5 dernières gardées) ; si la copie échoue, aucune migration n'est appliquée. Changement de nom (0.4) : si cette base n'existe pas, celle d'Escarcelle (`fr.chatcarbo.escarcelle\escarcelle.db`, avec son journal) est copiée au démarrage, sans modifier l'original.
 
 ---
 

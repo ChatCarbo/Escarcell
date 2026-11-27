@@ -350,6 +350,8 @@ La case **Vérifier au démarrage** est **décochée par défaut** : €scarcell
 
 L'emplacement exact est affiché dans **Paramètres**. Sous Windows : `%APPDATA%\fr.chatcarbo.escarcell\escarcell.db`.
 
+Avant chaque mise à jour de la structure de la base (nouvelle version), €scarcell en fait une copie complète à côté, `escarcell-avant-migration-v<version>-…db` (5 dernières gardées), restaurable dans Paramètres.
+
 Au premier lancement après le changement de nom (Escarcelle → €scarcell), la base d'Escarcelle (`%APPDATA%\fr.chatcarbo.escarcelle\escarcelle.db`) est **copiée** automatiquement : vous retrouvez vos données, et l'ancienne base reste en place. Les sauvegardes chiffrées `.escarcelle` faites avant se restaurent normalement.
 
 ---

@@ -28,6 +28,21 @@
 - **Exports** en CSV (Excel) et en image PNG.
 - **Sauvegarde chiffrée** par mot de passe, restauration, effacement des données, et avis de nouvelle version (désactivé par défaut).
 
+## Vos données sont protégées
+
+- **Copie de sécurité automatique** dans le dossier de données (`escarcell-avant-…db`, les 5 dernières de chaque sorte), juste avant chaque opération qui modifie beaucoup de données : un **import**, une **restauration**, et chaque **mise à jour de la structure de la base** (migration) lors d'une nouvelle version. Sans copie réussie, la migration n'est pas faite.
+- **Restauration** de n'importe laquelle de ces copies, ou d'une sauvegarde chiffrée, depuis **Paramètres**.
+- La base reste lisible par toutes les versions suivantes : chaque nouvelle version ajoute ses changements sans effacer les données.
+
+## Ancien nom : Escarcelle
+
+Le logiciel s'appelait **Escarcelle** jusqu'à la 0.4 ; il a été renommé **€scarcell** pour ne pas être confondu avec un logiciel homonyme.
+
+- Le dépôt GitHub a été renommé : l'ancienne adresse `github.com/ChatCarbo/escarcelle` redirige vers `github.com/ChatCarbo/escarcell`. Mettez quand même à jour vos favoris et votre `git remote` :
+  `git remote set-url origin https://github.com/ChatCarbo/escarcell.git`
+- **Vos données sont reprises** : au premier lancement, la base d'Escarcelle est copiée automatiquement dans le dossier d'€scarcell (l'originale n'est pas modifiée).
+- Les sauvegardes chiffrées `.escarcelle` faites avant le changement de nom se restaurent normalement ; les nouvelles portent l'extension `.escarcell`.
+
 ## Captures d'écran
 
 ### Tableau de bord
@@ -76,7 +91,7 @@ docs/                     Documentation
 ```sh
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
 cargo test                       # cœur de calcul : 132 tests, sans réseau
-cd app/src-tauri && cargo test   # application : 41 tests (calendrier des dividendes, import, sauvegarde chiffrée, livrets, base, migration, cours, versions)
+cd app/src-tauri && cargo test   # application : 43 tests (calendrier des dividendes, import, sauvegarde chiffrée, livrets, base, migration, cours, versions)
 cd .. && npm install && npm run tauri dev
 ```
 

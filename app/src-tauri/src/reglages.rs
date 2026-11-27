@@ -47,7 +47,7 @@ pub fn sauvegarder(etat: State<'_, Etat>, chemin: String) -> Resultat<()> {
 }
 
 /// Date et heure UTC : (« AAAA-MM-JJ HH:MM », « AAAAMMJJ-HHMMSS »).
-fn horodatage() -> (String, String) {
+pub(crate) fn horodatage() -> (String, String) {
     let s = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
     let d = escarcell_core::Date::depuis_jours_unix(s.div_euclid(86_400));
     let r = s.rem_euclid(86_400);
@@ -68,11 +68,17 @@ pub fn copie_de_securite(db: &Store, chemin_db: &Path, motif: &str) -> Resultat<
         copie = dossier.join(format!("{prefixe}{}-{n}.db", horodatage().1));
     }
     db.sauvegarder(&copie).map_err(err)?;
-    if let Ok(entrees) = std::fs::read_dir(&dossier) {
+    garder_les_dernieres(&dossier, &prefixe);
+    Ok(copie)
+}
+
+/// Ne garde, dans `dossier`, que les dernières copies dont le nom commence par `prefixe`.
+pub(crate) fn garder_les_dernieres(dossier: &Path, prefixe: &str) {
+    if let Ok(entrees) = std::fs::read_dir(dossier) {
         let mut copies: Vec<PathBuf> = entrees
             .filter_map(|e| e.ok().map(|e| e.path()))
             .filter(|p| {
-                p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(&prefixe) && n.ends_with(".db"))
+                p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(prefixe) && n.ends_with(".db"))
             })
             .collect();
         copies.sort();
@@ -81,7 +87,6 @@ pub fn copie_de_securite(db: &Store, chemin_db: &Path, motif: &str) -> Resultat<
             let _ = std::fs::remove_file(p);
         }
     }
-    Ok(copie)
 }
 
 /// Base de l'application avant son changement de nom (Escarcelle → €scarcell) : `escarcelle.db`, dans le même
