@@ -6,10 +6,10 @@
 //! dépôt à partir du 16 : au 1er du mois suivant ; retrait jusqu'au 15 : solde arrêté au dernier jour du mois
 //! précédent ; retrait à partir du 16 : solde arrêté au 15 ; intérêts ajoutés au capital au 31 décembre.
 
-use escarcelle_core::conseil_livret::{conseil_retrait, conseil_versement};
-use escarcelle_core::livret::{simuler, Mouvement};
-use escarcelle_core::params::embarque;
-use escarcelle_core::{Date, Money};
+use escarcell_core::conseil_livret::{conseil_retrait, conseil_versement};
+use escarcell_core::livret::{simuler, Mouvement};
+use escarcell_core::params::embarque;
+use escarcell_core::{Date, Money};
 
 fn d(s: &str) -> Date {
     s.parse().unwrap()
@@ -159,7 +159,7 @@ fn propriete_interets_positifs_et_bornes() {
         }
         let total_depots: i64 = mouvements
             .iter()
-            .filter(|m| m.sens == escarcelle_core::livret::Sens::Depot)
+            .filter(|m| m.sens == escarcell_core::livret::Sens::Depot)
             .map(|m| m.montant.cents())
             .sum();
         let r = simuler(&mouvements, &taux, 2026).unwrap();

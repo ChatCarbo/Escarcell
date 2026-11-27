@@ -25,12 +25,12 @@ pub fn emplacement_donnees(etat: State<'_, Etat>) -> String {
 pub fn sauvegarder(etat: State<'_, Etat>, chemin: String) -> Resultat<()> {
     let chemin = PathBuf::from(chemin);
     if chemin == etat.chemin_db {
-        return Err("Choisissez un autre fichier que la base d'Escarcelle elle-même.".into());
+        return Err("Choisissez un autre fichier que la base d'€scarcell elle-même.".into());
     }
     // On écrit d'abord dans un fichier temporaire, puis on le renomme : si la copie échoue,
     // une ancienne sauvegarde portant le même nom n'est pas perdue.
     let mut temporaire = chemin.clone().into_os_string();
-    temporaire.push(".escarcelle-tmp");
+    temporaire.push(".escarcell-tmp");
     let temporaire = PathBuf::from(temporaire);
     if temporaire.exists() {
         std::fs::remove_file(&temporaire).map_err(err)?;
@@ -49,17 +49,17 @@ pub fn sauvegarder(etat: State<'_, Etat>, chemin: String) -> Resultat<()> {
 /// Date et heure UTC : (« AAAA-MM-JJ HH:MM », « AAAAMMJJ-HHMMSS »).
 fn horodatage() -> (String, String) {
     let s = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
-    let d = escarcelle_core::Date::depuis_jours_unix(s.div_euclid(86_400));
+    let d = escarcell_core::Date::depuis_jours_unix(s.div_euclid(86_400));
     let r = s.rem_euclid(86_400);
     let (h, m, sec) = (r / 3600, r % 3600 / 60, r % 60);
     (format!("{d} {h:02}:{m:02}"), format!("{}{:02}{:02}-{h:02}{m:02}{sec:02}", d.year(), d.month(), d.day()))
 }
 
-/// Copie de sécurité de la base dans le dossier de données (`escarcelle-<motif>-AAAAMMJJ-HHMMSS.db`), avant
+/// Copie de sécurité de la base dans le dossier de données (`escarcell-<motif>-AAAAMMJJ-HHMMSS.db`), avant
 /// une opération qui remplace ou ajoute beaucoup de données. Seules les dernières copies de ce motif sont gardées.
 pub fn copie_de_securite(db: &Store, chemin_db: &Path, motif: &str) -> Resultat<PathBuf> {
     let dossier = chemin_db.parent().map(Path::to_path_buf).unwrap_or_default();
-    let prefixe = format!("escarcelle-{motif}-");
+    let prefixe = format!("escarcell-{motif}-");
     let mut copie = dossier.join(format!("{prefixe}{}.db", horodatage().1));
     // Deux copies dans la même seconde : suffixe pour ne pas écraser la première.
     let mut n = 1;
@@ -84,9 +84,45 @@ pub fn copie_de_securite(db: &Store, chemin_db: &Path, motif: &str) -> Resultat<
     Ok(copie)
 }
 
-/// Fichier temporaire dans le dossier de données d'Escarcelle.
+/// Base de l'application avant son changement de nom (Escarcelle → €scarcell) : `escarcelle.db`, dans le même
+/// dossier ou dans l'ancien dossier de données (`fr.chatcarbo.escarcelle`, voisin du nouveau).
+fn ancienne_base(chemin_db: &Path) -> Option<PathBuf> {
+    let dossier = chemin_db.parent()?;
+    let mut candidats = vec![dossier.join("escarcelle.db")];
+    if let Some(parent) = dossier.parent() {
+        candidats.push(parent.join("fr.chatcarbo.escarcelle").join("escarcelle.db"));
+    }
+    candidats.into_iter().find(|c| c.is_file())
+}
+
+/// Si la base n'existe pas encore, copie celle d'avant le changement de nom (avec son journal SQLite).
+/// L'ancienne base n'est pas touchée. Rend le chemin repris, s'il y en a un. Un échec de copie n'empêche pas
+/// le démarrage : l'application part alors d'une base vide et l'ancienne reste restaurable dans Paramètres.
+pub fn reprendre_ancienne_base(chemin_db: &Path) -> Option<PathBuf> {
+    if chemin_db.exists() {
+        return None;
+    }
+    let ancienne = ancienne_base(chemin_db)?;
+    let mut copiees = Vec::new();
+    for suffixe in ["", "-wal", "-shm"] {
+        let source = PathBuf::from(format!("{}{suffixe}", ancienne.display()));
+        let cible = PathBuf::from(format!("{}{suffixe}", chemin_db.display()));
+        if source.is_file() {
+            if std::fs::copy(&source, &cible).is_err() {
+                for c in &copiees {
+                    let _ = std::fs::remove_file(c);
+                }
+                return None;
+            }
+            copiees.push(cible);
+        }
+    }
+    Some(ancienne)
+}
+
+/// Fichier temporaire dans le dossier de données d'€scarcell.
 fn temporaire(etat: &Etat, nom: &str) -> PathBuf {
-    etat.chemin_db.with_file_name(format!("escarcelle-{nom}-{}.tmp", std::process::id()))
+    etat.chemin_db.with_file_name(format!("escarcell-{nom}-{}.tmp", std::process::id()))
 }
 
 /// Copie cohérente de la base, en octets.
@@ -101,7 +137,7 @@ fn copie_base(etat: &Etat) -> Resultat<Vec<u8>> {
 /// Écrit un fichier en passant par un fichier temporaire renommé : un échec ne détruit pas l'ancien fichier.
 fn ecrire_sans_risque(chemin: &Path, octets: &[u8]) -> Resultat<()> {
     let mut tmp = chemin.as_os_str().to_owned();
-    tmp.push(".escarcelle-tmp");
+    tmp.push(".escarcell-tmp");
     let tmp = PathBuf::from(tmp);
     if let Err(e) = std::fs::write(&tmp, octets) {
         let _ = std::fs::remove_file(&tmp);
@@ -117,12 +153,12 @@ fn extension(chemin: &Path) -> Option<String> {
     chemin.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase())
 }
 
-/// Sauvegarde chiffrée par mot de passe (fichier `.escarcelle`).
+/// Sauvegarde chiffrée par mot de passe (fichier `.escarcell`).
 #[tauri::command]
 pub fn sauvegarder_chiffre(etat: State<'_, Etat>, chemin: String, mot_de_passe: String) -> Resultat<()> {
     let chemin = PathBuf::from(chemin);
-    if extension(&chemin).as_deref() != Some("escarcelle") {
-        return Err("Une sauvegarde chiffrée doit porter l'extension .escarcelle.".into());
+    if extension(&chemin).as_deref() != Some("escarcell") {
+        return Err("Une sauvegarde chiffrée doit porter l'extension .escarcell.".into());
     }
     chiffrement::verifier_mot_de_passe(&mot_de_passe)?;
     let base = copie_base(&etat)?;
@@ -185,11 +221,11 @@ fn lire(etat: &Etat, chemin: &Path, mot_de_passe: Option<&str>) -> Resultat<Lect
     let lecture = Lecture { info, base, a_effacer };
     let verifier = || -> Resultat<i64> {
         if !Store::est_sauvegarde(&lecture.base) {
-            return Err("Ce fichier n'est pas une sauvegarde Escarcelle.".into());
+            return Err("Ce fichier n'est pas une sauvegarde €scarcell.".into());
         }
         let v = Store::version_schema_fichier(&lecture.base).unwrap_or(0);
         if v > Store::version_schema_connue() {
-            return Err("Cette sauvegarde vient d'une version plus récente d'Escarcelle : mettez Escarcelle à jour avant de la restaurer.".into());
+            return Err("Cette sauvegarde vient d'une version plus récente d'€scarcell : mettez €scarcell à jour avant de la restaurer.".into());
         }
         Ok(v)
     };
@@ -259,4 +295,33 @@ pub fn enregistrer_export(chemin: String, octets: Vec<u8>) -> Resultat<()> {
         return Err("Un export doit être un fichier .csv ou .png.".into());
     }
     std::fs::write(&chemin, octets).map_err(err)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reprise_de_la_base_d_avant_le_changement_de_nom() {
+        let racine = std::env::temp_dir().join(format!("escarcell-test-reprise-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&racine);
+        let ancien = racine.join("fr.chatcarbo.escarcelle");
+        let nouveau = racine.join("fr.chatcarbo.escarcell");
+        std::fs::create_dir_all(&ancien).unwrap();
+        std::fs::create_dir_all(&nouveau).unwrap();
+        let db = nouveau.join("escarcell.db");
+        // Rien à reprendre.
+        assert_eq!(reprendre_ancienne_base(&db), None);
+        std::fs::write(ancien.join("escarcelle.db"), b"base").unwrap();
+        std::fs::write(ancien.join("escarcelle.db-wal"), b"journal").unwrap();
+        assert_eq!(reprendre_ancienne_base(&db), Some(ancien.join("escarcelle.db")));
+        assert_eq!(std::fs::read(&db).unwrap(), b"base");
+        assert_eq!(std::fs::read(nouveau.join("escarcell.db-wal")).unwrap(), b"journal");
+        assert!(ancien.join("escarcelle.db").exists(), "l'ancienne base reste en place");
+        // Base déjà présente : jamais écrasée.
+        std::fs::write(&db, b"nouvelle").unwrap();
+        assert_eq!(reprendre_ancienne_base(&db), None);
+        assert_eq!(std::fs::read(&db).unwrap(), b"nouvelle");
+        let _ = std::fs::remove_dir_all(&racine);
+    }
 }

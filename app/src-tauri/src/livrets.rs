@@ -1,15 +1,15 @@
 //! Livrets réglementés : suivi des virements, conseils de dates, répartition entre livrets.
 //! Pas d'établissement : un Livret A, un LDDS et un LEP au plus.
 
-use escarcelle_core::conseil_livret::{
+use escarcell_core::conseil_livret::{
     conseil_retrait, conseil_versement, repartir_retrait, repartir_versement, LivretDetenu,
 };
-use escarcelle_core::livret::{
+use escarcell_core::livret::{
     controler, debut_quinzaine, interets_maximum, normaliser, simuler, AnneeLivret, Anomalie, Mouvement, Sens,
     MONTANT_MAX,
 };
-use escarcelle_core::params::{embarque, LivretParams};
-use escarcelle_core::{Date, Money};
+use escarcell_core::params::{embarque, LivretParams};
+use escarcell_core::{Date, Money};
 use serde::Serialize;
 use tauri::State;
 
@@ -322,7 +322,7 @@ pub fn repartir_livrets(etat: State<'_, Etat>, sens: String, montant_cents: i64)
                     nom: l.nom,
                     solde: Money::from_cents(l.solde_cents),
                     plafond: Money::from_cents(l.plafond_cents),
-                    taux: escarcelle_core::Rate::from_micro(l.taux_micro),
+                    taux: escarcell_core::Rate::from_micro(l.taux_micro),
                 },
             )
         })

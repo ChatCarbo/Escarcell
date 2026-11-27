@@ -5,9 +5,9 @@
 //!   intitulés des colonnes), puis relues : on doit retrouver exactement les mêmes opérations.
 //! - Journal : quantités et PRU comparés à un calcul indépendant en fractions exactes.
 
-use escarcelle_core::import_csv::*;
-use escarcelle_core::journal::{rejouer, ErreurJournal, MouvementTitre, SensTitre};
-use escarcelle_core::{Date, Money, Price};
+use escarcell_core::import_csv::*;
+use escarcell_core::journal::{rejouer, ErreurJournal, MouvementTitre, SensTitre};
+use escarcell_core::{Date, Money, Price};
 
 struct Alea(u64);
 

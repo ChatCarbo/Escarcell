@@ -1,4 +1,5 @@
-//! Sauvegarde chiffrée : format de fichier `.escarcelle`.
+//! Sauvegarde chiffrée : format de fichier `.escarcell` (`.escarcelle` avant le changement de nom, même format).
+//! La clé de métadonnée `version_escarcelle` garde son nom d'origine pour que toutes les sauvegardes restent lisibles.
 //!
 //! ```text
 //! En-tête (57 octets, en clair mais authentifié) :
@@ -142,13 +143,13 @@ pub fn est_chiffre(fichier: &[u8]) -> bool {
 /// Déchiffre une sauvegarde : métadonnées et base SQLite.
 pub fn dechiffrer(fichier: &[u8], mdp: &str) -> Result<(Metadonnees, Vec<u8>), String> {
     if !est_chiffre(fichier) {
-        return Err("Ce fichier n'est pas une sauvegarde chiffrée Escarcelle.".into());
+        return Err("Ce fichier n'est pas une sauvegarde chiffrée €scarcell.".into());
     }
     if fichier.len() < TAILLE_ENTETE + 16 {
         return Err(ECHEC.into());
     }
     if fichier[4] != VERSION_FORMAT {
-        return Err("Cette sauvegarde vient d'une version plus récente d'Escarcelle : mettez Escarcelle à jour.".into());
+        return Err("Cette sauvegarde vient d'une version plus récente d'€scarcell : mettez €scarcell à jour.".into());
     }
     let u32_a = |i: usize| u32::from_le_bytes([fichier[i], fichier[i + 1], fichier[i + 2], fichier[i + 3]]);
     let (m, t, p) = (u32_a(5), u32_a(9), u32_a(13));

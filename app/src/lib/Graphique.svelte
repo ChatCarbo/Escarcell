@@ -16,7 +16,7 @@
         nomFichier(`${nom}-${libelle}`),
         `${nom} (${symbole}) — ${libelle}, ${intervalle === '1wk' ? 'hebdomadaire' : 'journalier'}`,
         [...racine.querySelectorAll('svg.courbe')],
-        `Escarcelle · cours Yahoo Finance · ${new Date().toLocaleDateString('fr-FR')} · description du passé, pas un conseil en investissement`,
+        `€scarcell · cours Yahoo Finance · ${new Date().toLocaleDateString('fr-FR')} · description du passé, pas un conseil en investissement`,
       );
       if (chemin) messageExport = `Image enregistrée : ${chemin}`;
     } catch (e) {

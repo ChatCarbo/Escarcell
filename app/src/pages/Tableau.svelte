@@ -16,7 +16,7 @@
     const lignes = tdb.comptes.map((c) => [c.nom, TYPES[c.type] ?? c.type, eurosCsv(c.valeur_cents), eurosCsv(c.complement_cents)]);
     lignes.push(['Total', '', eurosCsv(tdb.total_cents), '']);
     try {
-      const chemin = await exporterCsv('escarcelle-tableau-de-bord', ['Compte', 'Type', 'Valeur (€)', 'Intérêts estimés / plus-value latente (€)'], lignes);
+      const chemin = await exporterCsv('escarcell-tableau-de-bord', ['Compte', 'Type', 'Valeur (€)', 'Intérêts estimés / plus-value latente (€)'], lignes);
       if (chemin) messageExport = `Export enregistré : ${chemin}`;
     } catch (e) {
       erreur = String(e);
@@ -27,7 +27,7 @@
     messageExport = '';
     try {
       const chemin = await exporterImage(
-        'escarcelle-repartition',
+        'escarcell-repartition',
         `Répartition de l'épargne au ${new Date(tdb.date + 'T00:00:00').toLocaleDateString('fr-FR')} : ${euros(tdb.total_cents)}`,
         [racine.querySelector('.donut svg')],
         tdb.par_enveloppe.filter((p) => p.montant_cents > 0).map((p) => `${p.libelle} ${euros(p.montant_cents)}`).join(' · '),

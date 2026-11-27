@@ -255,7 +255,7 @@ pub fn nom_du_format(entetes: &[String]) -> &'static str {
     } else if a("buying_price") && a("amount_variation") {
         "BoursoBank"
     } else if n.iter().all(|e| champ_d_entete(e).is_some() || e.is_empty()) {
-        "Escarcelle"
+        "€scarcell"
     } else {
         "tableau"
     }
@@ -673,7 +673,7 @@ TTE.PA,50.00,35.07,true,TotalEnergies SE,78.36,,4.62,3918.0,3918.0,1753.35,123.4
     fn historique_d_operations_reconnu() {
         let (lignes, _) = lire(crate::import_csv::modele().as_bytes());
         assert_eq!(reconnaitre(&lignes), Some((0, Genre::Operations)));
-        assert_eq!(nom_du_format(&lignes[0].champs), "Escarcelle");
+        assert_eq!(nom_du_format(&lignes[0].champs), "€scarcell");
         let (lignes, _) = lire(b"a;b\n1;2\n");
         assert_eq!(reconnaitre(&lignes), None);
     }

@@ -2,13 +2,13 @@
 //! Aucune fonction du cœur ne doit paniquer, et les séries calculées doivent garder la longueur de l'historique
 //! (l'application lit `analyse.sma20[i]` pour chaque bougie affichée).
 
-use escarcelle_core::analyse::{analyser, Bougie};
-use escarcelle_core::chandeliers::{
+use escarcell_core::analyse::{analyser, Bougie};
+use escarcell_core::chandeliers::{
     confirmation_multi_periodes, double_sommet_ou_fond, hebdomadaire, heikin_ashi, motifs, structure,
 };
-use escarcelle_core::dividendes::{dividende_net, pays_isin, rendement, synthese, Versement};
-use escarcelle_core::identifiants::isin_valide;
-use escarcelle_core::{Date, Money, Price, Rate};
+use escarcell_core::dividendes::{dividende_net, pays_isin, rendement, synthese, Versement};
+use escarcell_core::identifiants::isin_valide;
+use escarcell_core::{Date, Money, Price, Rate};
 
 const JOUR: i64 = 86_400;
 /// Lundi 5 janvier 2026, 0 h UTC.
@@ -145,8 +145,8 @@ fn dates_mal_formees() {
 
 #[test]
 fn livrets_simulables_pour_toute_date_depuis_le_debut_des_taux() {
-    use escarcelle_core::livret::{simuler, Mouvement};
-    use escarcelle_core::params::embarque;
+    use escarcell_core::livret::{simuler, Mouvement};
+    use escarcell_core::params::embarque;
     let debut = embarque::debut();
     for p in [embarque::livret_a(), embarque::ldds(), embarque::lep()] {
         // Un versement le jour du début des taux, puis tous les 1er et 16 du mois jusqu'à fin 2026.

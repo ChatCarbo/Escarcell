@@ -11,8 +11,8 @@
 //! Les retenues prélevées par chaque pays (26,375 % en Allemagne, 15 % aux Pays-Bas…) sont des valeurs par
 //! défaut modifiables par l'utilisateur : elles ne sont pas vérifiées ici, seule la mécanique l'est.
 
-use escarcelle_core::dividendes::{dividende_net, pays_isin, retenue_par_defaut, PAYS_CONNUS};
-use escarcelle_core::{Money, Rate};
+use escarcell_core::dividendes::{dividende_net, pays_isin, retenue_par_defaut, PAYS_CONNUS};
+use escarcell_core::{Money, Rate};
 
 fn eur(e: i64) -> Money {
     Money::from_euros(e)

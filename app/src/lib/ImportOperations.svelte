@@ -64,7 +64,7 @@
   }
 
   async function telechargerModele() {
-    const c = await save({ defaultPath: 'modele-escarcelle.csv', filters: [{ name: 'Fichier CSV', extensions: ['csv'] }] });
+    const c = await save({ defaultPath: 'modele-escarcell.csv', filters: [{ name: 'Fichier CSV', extensions: ['csv'] }] });
     if (!c) return;
     try {
       await api.enregistrerModele(c);
@@ -161,7 +161,7 @@
   <p>
     Ce fichier contient des opérations (achats, ventes, dividendes, versements, retraits) : chaque ligne est contrôlée
     avant tout enregistrement. Pour un achat ou une vente, le montant est calculé (quantité × prix) et les frais
-    s'ajoutent au PRU ; les intérêts des livrets ne sont pas importés, Escarcelle les recalcule.
+    s'ajoutent au PRU ; les intérêts des livrets ne sont pas importés, €scarcell les recalcule.
   </p>
   {#if analyse}
     <p class="discret petit">
@@ -177,7 +177,7 @@
 {#if analyse}
   <section class="carte">
     <h3>Colonnes</h3>
-    <p class="discret petit">Associez chaque colonne du fichier à un champ d'Escarcelle. Date, compte et type sont obligatoires.</p>
+    <p class="discret petit">Associez chaque colonne du fichier à un champ d'€scarcell. Date, compte et type sont obligatoires.</p>
     <div class="defilement">
       <table class="colonnes-import">
         <thead><tr><th>Colonne du fichier</th><th>Champ</th></tr></thead>

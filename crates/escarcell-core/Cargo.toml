@@ -1,6 +1,6 @@
 [package]
-name = "escarcelle-core"
-description = "Règles de calcul d'Escarcelle : livrets réglementés (quinzaines), impôt sur le revenu et TMI. Sans E/S, sans dépendance."
+name = "escarcell-core"
+description = "Règles de calcul d'€scarcell : livrets réglementés (quinzaines), impôt sur le revenu et TMI. Sans E/S, sans dépendance."
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

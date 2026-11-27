@@ -1,6 +1,6 @@
 # Campagne de vérification de la 0.3
 
-La 0.3 n'ajoute aucune fonction. Elle doit montrer qu'Escarcelle calcule juste, sur de vraies données.
+La 0.3 n'ajoute aucune fonction. Elle doit montrer qu'€scarcell calcule juste, sur de vraies données.
 Ce document décrit ce qui est déjà vérifié automatiquement, puis ce qui ne peut être vérifié que par
 l'utilisateur, avec ses propres relevés.
 
@@ -23,10 +23,10 @@ personnels masqués si vous le souhaitez).
 ### 2.1 Intérêts d'un livret sur une année complète
 
 1. Prenez le relevé annuel d'un Livret A, LDDS ou LEP (intérêts crédités au 31 décembre d'une année passée).
-2. Dans Escarcelle, saisissez **tous** les virements de cette année avec leurs **dates de valeur** (pas les dates d'opération), plus un versement au 1er janvier égal au solde du 31 décembre précédent.
-3. Comparez les intérêts calculés par Escarcelle aux intérêts du relevé.
+2. Dans €scarcell, saisissez **tous** les virements de cette année avec leurs **dates de valeur** (pas les dates d'opération), plus un versement au 1er janvier égal au solde du 31 décembre précédent.
+3. Comparez les intérêts calculés par €scarcell aux intérêts du relevé.
 
-| Livret | Année | Intérêts du relevé | Intérêts Escarcelle | Écart | Issue |
+| Livret | Année | Intérêts du relevé | Intérêts €scarcell | Écart | Issue |
 | :--- | :--- | ---: | ---: | ---: | :--- |
 | | | | | | |
 
@@ -38,7 +38,7 @@ par quinzaine au lieu d'une fois par an ; changement de taux en cours d'année (
 Le net du relevé doit être : brut − retenue du pays. Si votre banque applique un autre taux, corrigez la
 retenue du pays dans Paramètres et ouvrez une issue pour mettre à jour la valeur par défaut.
 
-| Titre | Pays | Brut relevé | Net relevé | Net Escarcelle | Écart | Issue |
+| Titre | Pays | Brut relevé | Net relevé | Net €scarcell | Écart | Issue |
 | :--- | :--- | ---: | ---: | ---: | ---: | :--- |
 | | | | | | | |
 
@@ -49,7 +49,7 @@ et les lignes du PEA sont intacts. Les lignes du compte-titres et du PEA-PME son
 
 ## 3. Utilisation réelle (2 à 3 semaines)
 
-Utilisez Escarcelle comme seul outil de suivi pendant deux à trois semaines. Ouvrez une issue pour
+Utilisez €scarcell comme seul outil de suivi pendant deux à trois semaines. Ouvrez une issue pour
 **chaque** problème, même petit : calcul, affichage, texte peu clair, lenteur, plantage.
 
 Règles de la 0.3 :

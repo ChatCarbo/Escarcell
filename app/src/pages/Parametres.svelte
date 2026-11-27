@@ -68,9 +68,10 @@
     const z = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}`;
   };
-  const FILTRES = [{ name: 'Sauvegarde Escarcelle', extensions: ['db'] }];
-  const FILTRES_CHIFFRES = [{ name: 'Sauvegarde chiffrée Escarcelle', extensions: ['escarcelle'] }];
-  const FILTRES_TOUS = [{ name: 'Sauvegarde Escarcelle', extensions: ['escarcelle', 'db'] }];
+  const FILTRES = [{ name: 'Sauvegarde €scarcell', extensions: ['db'] }];
+  const FILTRES_CHIFFRES = [{ name: 'Sauvegarde chiffrée €scarcell', extensions: ['escarcell'] }];
+  // .escarcelle : sauvegardes chiffrées faites avant le changement de nom, toujours lisibles.
+  const FILTRES_TOUS = [{ name: 'Sauvegarde €scarcell', extensions: ['escarcell', 'escarcelle', 'db'] }];
   const LONGUEUR_MIN = 12;
 
   // Sauvegarde chiffrée
@@ -92,7 +93,7 @@
 
   async function sauvegarderChiffre() {
     message = null;
-    const chemin = await save({ defaultPath: `escarcelle-${horodatage()}.escarcelle`, filters: FILTRES_CHIFFRES });
+    const chemin = await save({ defaultPath: `escarcell-${horodatage()}.escarcell`, filters: FILTRES_CHIFFRES });
     if (!chemin) return;
     enCours = true;
     try {
@@ -109,7 +110,7 @@
 
   async function sauvegarder() {
     message = null;
-    const chemin = await save({ defaultPath: `escarcelle-${aujourdhui()}.db`, filters: FILTRES });
+    const chemin = await save({ defaultPath: `escarcell-${aujourdhui()}.db`, filters: FILTRES });
     if (!chemin) return;
     try {
       await api.sauvegarder(chemin);
@@ -126,7 +127,7 @@
     message = null;
     const chemin = await open({ multiple: false, directory: false, filters: FILTRES_TOUS });
     if (!chemin) return;
-    const chiffree = String(chemin).toLowerCase().endsWith('.escarcelle');
+    const chiffree = /\.escarcelle?$/.test(String(chemin).toLowerCase());
     restauration = { chemin, chiffree, mdp: '', info: null };
     if (!chiffree) await lireRestauration();
   }
@@ -173,11 +174,11 @@
   <h3>Sauvegarde chiffrée</h3>
   <p>
     Toutes vos données (livrets, lignes du PEA, dividendes, assemblées générales, réglages) dans un seul fichier
-    <code>.escarcelle</code>, chiffré par un mot de passe : vous pouvez le placer sur une clé USB ou dans un dossier
+    <code>.escarcell</code>, chiffré par un mot de passe : vous pouvez le placer sur une clé USB ou dans un dossier
     synchronisé (OneDrive, Google Drive…) sans que son contenu soit lisible.
   </p>
   <p class="message attention">
-    <b>Sans le mot de passe, la sauvegarde est perdue</b> : Escarcelle ne le conserve nulle part et personne ne peut le
+    <b>Sans le mot de passe, la sauvegarde est perdue</b> : €scarcell ne le conserve nulle part et personne ne peut le
     retrouver. Notez-le dans un endroit sûr (gestionnaire de mots de passe).
   </p>
   <div class="champs">
@@ -199,7 +200,7 @@
 
 <section class="carte">
   <h3>Restaurer une sauvegarde</h3>
-  <p>Remplace toutes les données actuelles par celles d'une sauvegarde chiffrée (.escarcelle) ou non (.db). Une copie de sécurité des données actuelles est faite automatiquement avant.</p>
+  <p>Remplace toutes les données actuelles par celles d'une sauvegarde chiffrée (.escarcell, ou .escarcelle pour une sauvegarde faite avant le changement de nom) ou non (.db). Une copie de sécurité des données actuelles est faite automatiquement avant.</p>
   {#if restauration}
     <p class="discret petit">Fichier : {restauration.chemin}</p>
     {#if restauration.chiffree && !restauration.info}
@@ -213,7 +214,7 @@
     {:else if restauration.info}
       <p class="message attention">
         {#if restauration.info.chiffree}
-          Sauvegarde du <b>{restauration.info.cree_le} (UTC)</b>{restauration.info.appareil ? `, faite sur ${restauration.info.appareil}` : ''}, avec Escarcelle {restauration.info.version_escarcelle}.
+          Sauvegarde du <b>{restauration.info.cree_le} (UTC)</b>{restauration.info.appareil ? `, faite sur ${restauration.info.appareil}` : ''}, avec €scarcell {restauration.info.version_escarcelle}.
         {:else}
           Sauvegarde non chiffrée.
         {/if}
@@ -272,7 +273,7 @@
   <p><button onclick={verifier} disabled={verification}>{verification ? 'Vérification…' : 'Vérifier maintenant'}</button></p>
   {#if maj}
     {#if maj.disponible}
-      <p class="message ok">Escarcelle {maj.derniere_version} est disponible (vous avez la {maj.version_actuelle}).
+      <p class="message ok">€scarcell {maj.derniere_version} est disponible (vous avez la {maj.version_actuelle}).
         Téléchargez-la depuis la page <a href={maj.url} target="_blank" rel="noreferrer">de la version</a>.</p>
     {:else}
       <p class="message">Vous avez la dernière version ({maj.version_actuelle}).</p>
@@ -280,7 +281,7 @@
   {/if}
   <p class="discret petit">
     La vérification envoie une requête à api.github.com : GitHub voit votre adresse IP, comme pour toute page web, mais aucune
-    donnée d'Escarcelle n'est transmise. Rien n'est téléchargé ni installé automatiquement.
+    donnée d'€scarcell n'est transmise. Rien n'est téléchargé ni installé automatiquement.
   </p>
 </section>
 

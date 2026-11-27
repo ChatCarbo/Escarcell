@@ -4,8 +4,7 @@
 
 use serde::Deserialize;
 
-pub const USER_AGENT: &str =
-    concat!("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Escarcelle/", env!("CARGO_PKG_VERSION"));
+pub const USER_AGENT: &str = concat!("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Escarcell/", env!("CARGO_PKG_VERSION"));
 
 pub struct Cotation {
     /// Cours en millionièmes de la devise.
@@ -111,7 +110,7 @@ pub fn symbole_valide(s: &str) -> bool {
 
 /// Un ISIN valide (clé de contrôle ISO 6166 comprise).
 pub fn est_isin(s: &str) -> bool {
-    escarcelle_core::identifiants::isin_valide(s)
+    escarcell_core::identifiants::isin_valide(s)
 }
 
 /// Trouve le symbole de cotation d'un ISIN ou d'un nom, en privilégiant Euronext Paris.
@@ -277,7 +276,7 @@ pub async fn historique(
     http: &reqwest::Client,
     symbole: &str,
     periode: &str,
-) -> Result<Vec<escarcelle_core::analyse::Bougie>, String> {
+) -> Result<Vec<escarcell_core::analyse::Bougie>, String> {
     let url = format!("https://query1.finance.yahoo.com/v8/finance/chart/{symbole}");
     let c: Chart = http
         .get(url)
@@ -298,7 +297,7 @@ pub async fn historique(
         .enumerate()
         .filter_map(|(i, &t)| {
             let cloture = val(&q.close, i)?;
-            Some(escarcelle_core::analyse::Bougie {
+            Some(escarcell_core::analyse::Bougie {
                 t,
                 ouverture: val(&q.open, i).unwrap_or(cloture),
                 haut: val(&q.high, i).unwrap_or(cloture),
@@ -318,7 +317,7 @@ pub struct InfosDividendes {
 }
 
 fn date_iso(t: i64) -> String {
-    escarcelle_core::Date::depuis_jours_unix(t.div_euclid(86_400)).to_string()
+    escarcell_core::Date::depuis_jours_unix(t.div_euclid(86_400)).to_string()
 }
 
 /// Historique des dividendes sur 10 ans et cours mensuels (une seule requête, légère).

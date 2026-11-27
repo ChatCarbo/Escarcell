@@ -174,7 +174,7 @@
         {@const h2 = (m.annonce_cents / maxMois) * 170}
         {@const h3 = (m.estime_cents / maxMois) * 170}
         <g>
-          <title>{MOIS_LONGS[i]} : perçu {euros(m.percu_cents)}, annoncé {euros(m.annonce_cents)}, estimé {euros(m.estime_cents)}</title>
+          <title>{MOIS_LONGS[i]} : perçu ou détaché {euros(m.percu_cents)}, annoncé {euros(m.annonce_cents)}, estimé {euros(m.estime_cents)}</title>
           <rect x={x} y={190 - h1} width="36" height={h1} class="barre-percu" />
           <rect x={x} y={190 - h1 - h2} width="36" height={h2} class="barre-annonce" />
           <rect x={x} y={190 - h1 - h2 - h3} width="36" height={h3} class="barre-estime" />
@@ -184,7 +184,7 @@
       <line x1="5" y1="190" x2="595" y2="190" class="axe" />
     </svg>
     <p class="legende-histogramme petit">
-      <span><i class="barre-percu"></i>Perçu (enregistré)</span>
+      <span title="Dividendes enregistrés, et dividendes détachés ces 12 derniers mois pas encore enregistrés (quantité détenue aujourd'hui)"><i class="barre-percu"></i>Perçu</span>
       <span><i class="barre-annonce"></i>Annoncé</span>
       <span><i class="barre-estime"></i>Estimé</span>
     </p>

@@ -1,4 +1,4 @@
-//! Stockage local SQLite (un seul fichier `escarcelle.db`).
+//! Stockage local SQLite (un seul fichier `escarcell.db`).
 //! Montants en centimes, quantités et cours en millionièmes : aucun flottant.
 
 use std::path::Path;
@@ -310,7 +310,7 @@ impl Store {
         Ok(())
     }
 
-    /// Version du schéma que cette version d'Escarcelle sait lire (nombre de migrations).
+    /// Version du schéma que cette version d'€scarcell sait lire (nombre de migrations).
     pub fn version_schema_connue() -> i64 {
         MIGRATIONS.len() as i64
     }
@@ -326,7 +326,7 @@ impl Store {
         c.pragma_query_value(None, "user_version", |r| r.get(0)).ok()
     }
 
-    /// Vérifie qu'un fichier est bien une sauvegarde Escarcelle.
+    /// Vérifie qu'un fichier est bien une sauvegarde €scarcell.
     pub fn est_sauvegarde(chemin: &Path) -> bool {
         let Ok(c) = Connection::open_with_flags(chemin, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY) else {
             return false;
@@ -910,12 +910,12 @@ mod tests {
 
     #[test]
     fn sauvegarde_restauration_effacement() {
-        let dossier = std::env::temp_dir().join(format!("escarcelle-test-{}", std::process::id()));
+        let dossier = std::env::temp_dir().join(format!("escarcell-test-{}", std::process::id()));
         std::fs::create_dir_all(&dossier).unwrap();
         let sauvegarde = dossier.join("sauvegarde.db");
         let _ = std::fs::remove_file(&sauvegarde);
 
-        let mut s = Store::ouvrir(&dossier.join("escarcelle.db")).unwrap();
+        let mut s = Store::ouvrir(&dossier.join("escarcell.db")).unwrap();
         s.effacer_tout().unwrap();
         s.enregistrer_cotation("MC.PA", 600_000_000, 1_795_000_000, "test").unwrap();
         s.sauvegarder(&sauvegarde).unwrap();

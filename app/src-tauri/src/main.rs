@@ -38,7 +38,10 @@ fn main() {
         .setup(|app| {
             let dossier = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dossier)?;
-            let chemin_db = dossier.join("escarcelle.db");
+            let chemin_db = dossier.join("escarcell.db");
+            // Première ouverture après le changement de nom : reprise de la base d'Escarcelle (copiée, l'ancienne
+            // reste en place).
+            reglages::reprendre_ancienne_base(&chemin_db);
             let db = store::Store::ouvrir(&chemin_db)?;
             let http = reqwest::Client::builder()
                 .user_agent(cours::USER_AGENT)
@@ -92,5 +95,5 @@ fn main() {
             import_pea::importer_positions,
         ])
         .run(tauri::generate_context!())
-        .expect("erreur au lancement d'Escarcelle");
+        .expect("erreur au lancement d'€scarcell");
 }

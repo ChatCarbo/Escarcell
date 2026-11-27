@@ -1,6 +1,6 @@
-//! # escarcelle-core
+//! # escarcell-core
 //!
-//! Règles de calcul d'Escarcelle, sans entrée/sortie ni dépendance externe :
+//! Règles de calcul d'€scarcell, sans entrée/sortie ni dépendance externe :
 //!
 //! - [`money::Money`] : montants en centimes (`i64`), jamais de flottants ;
 //! - [`price::Price`] : cours et PRU en millionièmes ;

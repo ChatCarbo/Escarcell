@@ -1,4 +1,4 @@
-# Compiler et lancer Escarcelle
+# Compiler et lancer €scarcell
 
 ## 1. Le cœur de calcul (aucune connexion nécessaire)
 
@@ -39,4 +39,4 @@ Pensez à envoyer `app/package-lock.json` sur GitHub : la CI installe alors exac
 ## Données
 
 Les données sont enregistrées dans le dossier de données de l'application
-(sous Windows : `%APPDATA%\fr.chatcarbo.escarcelle\escarcelle.db`). Une sauvegarde = une copie de ce fichier.
+(sous Windows : `%APPDATA%\fr.chatcarbo.escarcell\escarcell.db`). Une sauvegarde = une copie de ce fichier.

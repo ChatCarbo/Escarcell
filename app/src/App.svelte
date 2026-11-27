@@ -36,12 +36,12 @@
   <nav class="barre">
     <div class="marque">
       <svg viewBox="0 0 128 128" width="28" height="28" aria-hidden="true">
-        <path d="M64 12L108 28V62C108 91.5 89.2 112.8 64 120C38.8 112.8 20 91.5 20 62V28L64 12Z" fill="#0F172A" />
-        <rect x="42" y="68" width="10" height="24" rx="3" fill="#38BDF8" />
-        <rect x="59" y="54" width="10" height="38" rx="3" fill="#34D399" />
-        <rect x="76" y="40" width="10" height="52" rx="3" fill="#FBBF24" />
+        <path d="M64 8L112 25.5V62C112 94 91.8 117.2 64 125C36.2 117.2 16 94 16 62V25.5L64 8Z" fill="#0B1F3A" />
+        <rect x="37" y="70" width="14" height="28" rx="3" fill="#2F6BEA" />
+        <rect x="57" y="55" width="14" height="43" rx="3" fill="#FFFFFF" />
+        <rect x="77" y="38" width="14" height="60" rx="3" fill="#E8413A" />
       </svg>
-      <span>Escarcelle</span>
+      <span>€scarcell</span>
     </div>
     {#each PAGES as p (p.id)}
       <button class:actif={page === p.id} onclick={() => (page = p.id)}>{p.libelle}</button>
@@ -60,7 +60,7 @@
   <main>
     {#if maj && !majFermee}
       <p class="message ok bandeau-maj">
-        Escarcelle {maj.derniere_version} est disponible (vous avez la {maj.version_actuelle}).
+        €scarcell {maj.derniere_version} est disponible (vous avez la {maj.version_actuelle}).
         <a href={maj.url} target="_blank" rel="noreferrer">Voir la nouvelle version</a>
         <button class="discret" onclick={() => (majFermee = true)} aria-label="Fermer">✕</button>
       </p>

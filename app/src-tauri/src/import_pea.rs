@@ -5,8 +5,8 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
 
-use escarcelle_core::import_csv::detecter_decimale;
-use escarcelle_core::import_positions::{
+use escarcell_core::import_csv::detecter_decimale;
+use escarcell_core::import_positions::{
     export_pea_pme, lire_position, nom_de_recherche, nom_du_format, reconnaitre, regrouper, ChampPosition, Genre,
     LecturePosition, PositionLue,
 };
@@ -77,7 +77,7 @@ pub struct CompteursPositions {
 #[derive(Clone, Debug, Serialize)]
 pub struct PositionsDto {
     pub fichier: String,
-    /// Moning, BoursoBank, Escarcelle ou tableau.
+    /// Moning, BoursoBank, €scarcell ou tableau.
     pub format: String,
     pub lignes: Vec<PositionDto>,
     /// Lignes du PEA saisies à la main qui ne sont pas dans le fichier (nom).
@@ -110,7 +110,7 @@ fn lire(tableau: &Tableau) -> Resultat<(String, Vec<(usize, LecturePosition)>)> 
             .into());
     };
     if export_pea_pme(&tableau.lignes, i) {
-        return Err("Ce fichier est l'export d'un PEA-PME : Escarcelle ne suit que le PEA.".into());
+        return Err("Ce fichier est l'export d'un PEA-PME : €scarcell ne suit que le PEA.".into());
     }
     let donnees = &tableau.lignes[i + 1..];
     let valeurs = donnees.iter().flat_map(|l| {
@@ -630,7 +630,7 @@ TOTALENERGIES (TTE);78,36;;EUR;1.4%;50;35,0666;3918;2164,67;123.46%;20.7282%;FR0
 
     #[test]
     fn historique_d_operations_detecte() {
-        let t = tableau_texte(escarcelle_core::import_csv::modele().as_bytes());
+        let t = tableau_texte(escarcell_core::import_csv::modele().as_bytes());
         assert!(matches!(reconnaitre(&t.lignes), Some((_, Genre::Operations))));
         assert!(lire(&tableau_texte(b"a;b\n1;2\n")).is_err());
     }

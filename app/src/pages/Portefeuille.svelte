@@ -255,7 +255,7 @@
     lignes.push(['Total', '', '', '', '', '', '', eurosCsv(pf.valeur_cents), eurosCsv(pf.investi_cents), eurosCsv(pf.pv_cents),
       microCsv(pf.pv_micro * 100, 2), '', '', microCsv(pf.div_rendement_micro * 100, 2), eurosCsv(pf.div_brut_cents), '',
       eurosCsv(pf.div_net_cents), '']);
-    const chemin = await essayer(() => exporterCsv('escarcelle-pea', entetes, lignes));
+    const chemin = await essayer(() => exporterCsv('escarcell-pea', entetes, lignes));
     if (chemin) messageExport = `Export enregistré : ${chemin}`;
   }
 </script>

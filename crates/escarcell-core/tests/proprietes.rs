@@ -11,9 +11,9 @@
 //! 3. **Historique officiel des taux** : à chaque changement de taux depuis 2020, la quinzaine qui commence le jour
 //!    du changement est payée au nouveau taux, celle d'avant à l'ancien.
 
-use escarcelle_core::livret::{controler, simuler, AnneeLivret, Mouvement, Sens};
-use escarcelle_core::params::{embarque, Series};
-use escarcelle_core::{Date, Money, Rate};
+use escarcell_core::livret::{controler, simuler, AnneeLivret, Mouvement, Sens};
+use escarcell_core::params::{embarque, Series};
+use escarcell_core::{Date, Money, Rate};
 
 // ---------- Générateur pseudo-aléatoire (xorshift64*), sans dépendance ----------
 
@@ -36,7 +36,7 @@ impl Alea {
 }
 
 fn fin_de_mois(a: i32, m: u8) -> u8 {
-    escarcelle_core::date::jours_dans_mois(a, m)
+    escarcell_core::date::jours_dans_mois(a, m)
 }
 
 /// Date tirée entre février 2020 et juin 2027, avec une forte proportion de jours charnières
@@ -338,7 +338,7 @@ fn controle_stable() {
             let mut inverse = m.clone();
             inverse.reverse();
             let b = controler(&inverse, &t, plafond).unwrap();
-            let cle = |v: &[Mouvement], a: &[(usize, escarcelle_core::livret::Anomalie)]| {
+            let cle = |v: &[Mouvement], a: &[(usize, escarcell_core::livret::Anomalie)]| {
                 let mut k: Vec<String> = a.iter().map(|(i, x)| format!("{:?} {:?}", v[*i], x)).collect();
                 k.sort();
                 k

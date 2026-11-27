@@ -1,4 +1,4 @@
-//! Lecture des fichiers CSV d'opérations (format de référence Escarcelle ou colonnes associées par
+//! Lecture des fichiers CSV d'opérations (format de référence €scarcell ou colonnes associées par
 //! l'utilisateur), sans entrée/sortie : décodage, séparateurs, champs, nombres, dates et contrôle de chaque
 //! ligne prise isolément. Les contrôles qui dépendent des données déjà enregistrées (doublons, plafonds,
 //! quantités détenues) sont faits par l'application avec [`crate::livret`] et [`crate::journal`].
@@ -494,7 +494,7 @@ impl CompteImport {
                 CompteImport::Ldds
             }
             "lep" | "livretdepargnepopulaire" => CompteImport::Lep,
-            "peapme" => return Err("le PEA-PME n'est pas suivi par Escarcelle".into()),
+            "peapme" => return Err("le PEA-PME n'est pas suivi par €scarcell".into()),
             "" => return Err("compte manquant".into()),
             _ => return Err(format!("compte « {} » inconnu (PEA, Livret A, LDDS ou LEP)", s.trim())),
         })
@@ -509,7 +509,7 @@ pub enum TypeImport {
     Versement,
     Retrait,
     Frais,
-    /// Intérêts d'un livret : recalculés par Escarcelle, jamais importés (comparés au calcul).
+    /// Intérêts d'un livret : recalculés par €scarcell, jamais importés (comparés au calcul).
     Interets,
     /// Solde de départ d'un livret (relevé à une date).
     Solde,
@@ -684,7 +684,7 @@ pub fn analyser_ligne(champs: &[String], corr: &[Option<Champ>], dec: Decimale) 
         let debut = crate::params::embarque::debut();
         if date < debut {
             a.erreurs.push(format!(
-                "Escarcelle connaît les taux des livrets depuis le {:02}/{:02}/{} : remplacez les opérations plus anciennes par une ligne « solde » à cette date",
+                "€scarcell connaît les taux des livrets depuis le {:02}/{:02}/{} : remplacez les opérations plus anciennes par une ligne « solde » à cette date",
                 debut.day(),
                 debut.month(),
                 debut.year()
@@ -794,7 +794,7 @@ pub fn modele() -> String {
         "2025-01-01;Livret A;solde;;;;;10000,00;;EUR;Solde relevé à cette date",
         "2025-03-10;Livret A;versement;;;;;1500,00;;EUR;",
         "2025-11-02;LDDS;versement;;;;;300,00;;EUR;",
-        "2025-12-31;Livret A;interets;;;;;240,17;;EUR;Comparé au calcul d'Escarcelle, non importé",
+        "2025-12-31;Livret A;interets;;;;;240,17;;EUR;Comparé au calcul d'€scarcell, non importé",
     ];
     let mut s = lignes.join("\r\n");
     s.push_str("\r\n");

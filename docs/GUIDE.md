@@ -1,12 +1,12 @@
-# Guide d'utilisation d'Escarcelle
+# Guide d'utilisation d'€scarcell
 
-Escarcelle vous aide à suivre vos **livrets réglementés** (Livret A, LDDS, LEP), et votre **PEA**, directement sur votre ordinateur. Vos données ne quittent jamais votre machine : pas de compte à créer, pas de banque à connecter. Escarcelle lit seulement des cours publics sur Internet, sans rien transmettre de vos données.
+€scarcell vous aide à suivre vos **livrets réglementés** (Livret A, LDDS, LEP), et votre **PEA**, directement sur votre ordinateur. Vos données ne quittent jamais votre machine : pas de compte à créer, pas de banque à connecter. €scarcell lit seulement des cours publics sur Internet, sans rien transmettre de vos données.
 
 ---
 
 ## Sommaire
 
-1. [Installer et lancer Escarcelle](#1-installer-et-lancer-escarcelle)
+1. [Installer et lancer €scarcell](#1-installer-et-lancer-escarcell)
 2. [Découvrir l'écran](#2-découvrir-lécran)
 3. [Suivre ses livrets](#3-suivre-ses-livrets)
 4. [Choisir le bon jour pour verser ou retirer](#4-choisir-le-bon-jour-pour-verser-ou-retirer)
@@ -18,11 +18,11 @@ Escarcelle vous aide à suivre vos **livrets réglementés** (Livret A, LDDS, LE
 
 ---
 
-## 1. Installer et lancer Escarcelle
+## 1. Installer et lancer €scarcell
 
 ### Avec l'installateur
 
-Téléchargez `Escarcelle_x.y.z_x64-setup.exe` depuis la page **Releases** du dépôt GitHub, lancez-le et suivez les étapes. Escarcelle apparaît ensuite dans le menu Démarrer.
+Téléchargez `€scarcell_x.y.z_x64-setup.exe` depuis la page **Releases** du dépôt GitHub, lancez-le et suivez les étapes. €scarcell apparaît ensuite dans le menu Démarrer.
 
 ### Depuis le code source (Windows)
 
@@ -31,12 +31,12 @@ Installez une seule fois :
 - **Node.js** (version LTS) : `winget install OpenJS.NodeJS.LTS`
 - **Visual Studio Build Tools**, avec l'option « Développement Desktop en C++ »
 
-Fermez et rouvrez PowerShell, puis dans le dossier `escarcelle\app` :
+Fermez et rouvrez PowerShell, puis dans le dossier `escarcell\app` :
 
 ```powershell
 npm install
 npm run tauri icon src-tauri/icons/logo.svg   # une seule fois
-npm run tauri dev                             # lance Escarcelle
+npm run tauri dev                             # lance €scarcell
 npm run tauri build                           # crée l'installateur
 ```
 
@@ -55,7 +55,7 @@ La première compilation prend plusieurs minutes. L'installateur est créé dans
 | **PEA** | Vos lignes d'actions et d'ETF, leurs cours, leurs dividendes et leurs courbes |
 | **Paramètres** (bouton ⚙ en haut à droite) | Sauvegarde, restauration, effacement, retenues à la source, nouvelles versions |
 
-Le numéro de version d'Escarcelle est affiché en bas du menu.
+Le numéro de version d'€scarcell est affiché en bas du menu.
 
 Si vous activez la vérification des nouvelles versions dans **Paramètres** (désactivée par défaut), un bandeau vert vous signale au démarrage qu'une nouvelle version est publiée, avec un lien vers la page de téléchargement.
 
@@ -73,10 +73,10 @@ Dans **Livrets**, trois cartes s'affichent : LEP, Livret A, LDDS. Pour chaque li
 
 1. Choisissez **Versement** ou **Retrait**.
 2. Choisissez le livret.
-3. Indiquez la **date de valeur** (celle qui figure sur votre relevé, pas forcément le jour où vous avez fait le virement). Escarcelle connaît les taux depuis le **1er février 2020** : pour un livret plus ancien, commencez par un **solde de départ** (voir ci-dessous).
+3. Indiquez la **date de valeur** (celle qui figure sur votre relevé, pas forcément le jour où vous avez fait le virement). €scarcell connaît les taux depuis le **1er février 2020** : pour un livret plus ancien, commencez par un **solde de départ** (voir ci-dessous).
 4. Indiquez le montant, puis **Enregistrer**.
 
-Escarcelle refuse un versement qui dépasserait le plafond (22 950 € pour le Livret A, 12 000 € pour le LDDS, 10 000 € pour le LEP) et un retrait supérieur au solde. Le contrôle se fait **à la date de valeur** : un versement daté de 2021 est comparé au solde de 2021, sans les intérêts gagnés depuis.
+€scarcell refuse un versement qui dépasserait le plafond (22 950 € pour le Livret A, 12 000 € pour le LDDS, 10 000 € pour le LEP) et un retrait supérieur au solde. Le contrôle se fait **à la date de valeur** : un versement daté de 2021 est comparé au solde de 2021, sans les intérêts gagnés depuis.
 
 > **Pour démarrer : le solde de départ.** Inutile de ressaisir des années de virements. Choisissez **Solde de départ**, puis indiquez le solde de votre dernier relevé annuel, **intérêts compris** (par exemple le solde au 31 décembre 2025), daté du **1er janvier** suivant (daté du 31 décembre, c'est pareil). Ce solde rapporte dès le 1er janvier, et il peut dépasser le plafond si les intérêts l'ont fait grossir. Saisissez ensuite les virements faits depuis. Un seul solde de départ par livret ; pour le changer, supprimez-le dans l'historique.
 
@@ -86,7 +86,7 @@ Chaque carte affiche le **solde**, une **jauge** de remplissage du plafond, les 
 
 ### Où verser, où retirer ?
 
-Quand vous tapez un montant, Escarcelle propose une répartition :
+Quand vous tapez un montant, €scarcell propose une répartition :
 - pour un **versement** : d'abord le LEP (le mieux rémunéré), puis le Livret A, puis le LDDS, sans dépasser les plafonds ;
 - pour un **retrait** : d'abord le livret le moins rémunéré ; à taux égal, le LDDS avant le Livret A (on garde plein le livret qui a le plus grand plafond).
 
@@ -112,7 +112,7 @@ Un retrait fait perdre toute la quinzaine en cours. Retirer le 14 coûte autant 
 
 ### La frise colorée
 
-Pendant la saisie, Escarcelle dessine les jours autour de la date choisie :
+Pendant la saisie, €scarcell dessine les jours autour de la date choisie :
 
 | Couleur | Signification |
 | :--- | :--- |
@@ -132,9 +132,9 @@ Le message indique que ce montant ne rapporte plus depuis le 1er mars, et que si
 
 ## 5. Suivre son PEA
 
-> Escarcelle suit le **PEA**. Le compte-titres et le PEA-PME ne sont plus proposés depuis la version 0.3 ; si vous aviez saisi des lignes dans ces enveloppes avec la 0.2, elles sont supprimées à la première ouverture (faites une sauvegarde avec la 0.2 avant de mettre à jour si vous voulez les garder).
+> €scarcell suit le **PEA**. Le compte-titres et le PEA-PME ne sont plus proposés depuis la version 0.3 ; si vous aviez saisi des lignes dans ces enveloppes avec la 0.2, elles sont supprimées à la première ouverture (faites une sauvegarde avec la 0.2 avant de mettre à jour si vous voulez les garder).
 
-Escarcelle ne vous demande pas l'historique de vos achats : vous saisissez simplement ce que vous détenez, comme sur l'écran de votre banque.
+€scarcell ne vous demande pas l'historique de vos achats : vous saisissez simplement ce que vous détenez, comme sur l'écran de votre banque.
 
 ### Ajouter une ligne au PEA
 
@@ -179,21 +179,21 @@ Une ligne marquée **importée** est calculée à partir des achats et ventes d'
 
 ### Importer son portefeuille
 
-Sur la page **PEA**, cliquez sur **Importer…** et choisissez un fichier exporté de votre banque ou de votre application de suivi : export CSV de **Moning**, export des positions de **BoursoBank**, export Excel « portefeuille simple » de **Fortuneo**, classeur **Excel** (.xlsx, .xls) ou OpenDocument (.ods), ou tout tableau qui contient, pour chaque titre, sa **quantité**, son **prix de revient (PRU)** et son **ISIN**, son **symbole** ou son **nom**. Rien à régler : Escarcelle reconnaît seul le format, la ligne d'en-tête (même après des lignes de titre), les colonnes en français ou en anglais, la virgule ou le point décimal.
+Sur la page **PEA**, cliquez sur **Importer…** et choisissez un fichier exporté de votre banque ou de votre application de suivi : export CSV de **Moning**, export des positions de **BoursoBank**, export Excel « portefeuille simple » de **Fortuneo**, classeur **Excel** (.xlsx, .xls) ou OpenDocument (.ods), ou tout tableau qui contient, pour chaque titre, sa **quantité**, son **prix de revient (PRU)** et son **ISIN**, son **symbole** ou son **nom**. Rien à régler : €scarcell reconnaît seul le format, la ligne d'en-tête (même après des lignes de titre), les colonnes en français ou en anglais, la virgule ou le point décimal.
 
 Un aperçu indique, titre par titre, ce qui va se passer : **Nouvelle** ligne, **Mise à jour** (ancienne et nouvelle quantité, ancien et nouveau PRU), **Inchangée**, ou **Erreur** (ISIN dont la clé est fausse, titre coté dans une autre devise que l'euro…). Les lignes de total et de liquidités sont ignorées. Cliquez sur **Importer** : tout est enregistré en une fois, après une copie de sécurité de vos données.
 
 - Un titre déjà présent est retrouvé par son ISIN ou son symbole : sa quantité et son PRU sont remplacés, son pays est gardé.
 - Les lignes de votre PEA absentes du fichier ne sont pas touchées, sauf si vous cochez « Supprimer aussi… ».
 - Fortuneo écrit le mnémonique entre parenthèses (« TOTALENERGIES (TTE) ») : il sert à trouver le cours. Une ligne d'actions à prime de fidélité (« AIR LIQUIDE PF28 », ISIN provisoire) est retrouvée d'après son nom ; l'aperçu vous demande de vérifier.
-- Un export de **PEA-PME** est refusé quand son titre l'indique (Escarcelle ne suit que le PEA). Ce n'est pas toujours le cas : n'importez que l'export de votre PEA.
+- Un export de **PEA-PME** est refusé quand son titre l'indique (€scarcell ne suit que le PEA). Ce n'est pas toujours le cas : n'importez que l'export de votre PEA.
 - Un titre présent deux fois dans le fichier est regroupé (quantités additionnées, PRU moyen pondéré).
 - Importer deux fois le même fichier ne change rien.
-- Une **copie de sécurité** de vos données est faite avant chaque import, dans le dossier de données : en cas d'erreur, restaurez-la dans **Paramètres → Restaurer une sauvegarde** (fichier `escarcelle-avant-import-…db`).
+- Une **copie de sécurité** de vos données est faite avant chaque import, dans le dossier de données : en cas d'erreur, restaurez-la dans **Paramètres → Restaurer une sauvegarde** (fichier `escarcell-avant-import-…db`).
 
 ### Importer un historique d'opérations
 
-Si le fichier choisi avec **Importer…** contient des **opérations datées** (colonnes date, compte, type : achats, ventes, dividendes, versements, retraits, et aussi les virements des livrets), Escarcelle ouvre l'import détaillé. Le modèle de fichier se télécharge depuis cet écran.
+Si le fichier choisi avec **Importer…** contient des **opérations datées** (colonnes date, compte, type : achats, ventes, dividendes, versements, retraits, et aussi les virements des livrets), €scarcell ouvre l'import détaillé. Le modèle de fichier se télécharge depuis cet écran.
 
 1. **Colonnes** : reconnues seules si elles suivent le modèle ; sinon, associez chaque colonne à un champ et enregistrez cette correspondance sous un nom pour la prochaine fois.
 2. **Aperçu** : *Valide* ; *Avertissement* (importée, à vérifier) ; *Erreur* (non importée : vente de plus de titres que vous n'en déteniez à cette date, retrait supérieur au solde…) ; *Doublon* (déjà enregistrée) ; *Non importée* (intérêts d'un livret).
@@ -202,8 +202,8 @@ Si le fichier choisi avec **Importer…** contient des **opérations datées** (
 Bon à savoir :
 
 - Pour un achat ou une vente, le **montant est calculé** (quantité × prix) ; les **frais** s'ajoutent au PRU. Les lignes du PEA calculées ainsi sont marquées **importée** : leur quantité et leur PRU ne se modifient plus à la main.
-- Les **intérêts des livrets ne sont pas importés** : Escarcelle les recalcule et indique, année par année, s'ils sont conformes à ceux du fichier.
-- Pour un livret, Escarcelle connaît les taux depuis le 1er février 2020 : remplacez les opérations plus anciennes par une ligne `solde`.
+- Les **intérêts des livrets ne sont pas importés** : €scarcell les recalcule et indique, année par année, s'ils sont conformes à ceux du fichier.
+- Pour un livret, €scarcell connaît les taux depuis le 1er février 2020 : remplacez les opérations plus anciennes par une ligne `solde`.
 
 ---
 
@@ -220,7 +220,7 @@ Cliquez sur le **nom d'une ligne** : sa fiche s'ouvre au-dessus de la courbe.
 | Croissance | Hausse moyenne par an du total des dividendes d'une année civile complète, entre les années affichées (6 ans au plus). Pour le PEA : moyenne des lignes, pondérée par leur dividende |
 | Prochain détachement | Date estimée d'après celle de l'an dernier : à confirmer sur le site de la société |
 
-Escarcelle compte ce qui a **déjà été versé**. Une hausse annoncée n'apparaît qu'une fois le dividende détaché : une application qui projette les prochains versements (Moning, par exemple) peut afficher un montant plus élevé. Exemple fin novembre 2026 : TotalEnergies a détaché 0,85 € trois fois puis 0,90 € (3,45 € sur 12 mois), alors que les acomptes annoncés sont de 0,90 € (3,60 € par an).
+€scarcell compte ce qui a **déjà été versé**. Une hausse annoncée n'apparaît qu'une fois le dividende détaché : une application qui projette les prochains versements (Moning, par exemple) peut afficher un montant plus élevé. Exemple fin novembre 2026 : TotalEnergies a détaché 0,85 € trois fois puis 0,90 € (3,45 € sur 12 mois), alors que les acomptes annoncés sont de 0,90 € (3,60 € par an).
 
 ### Du brut au net
 
@@ -243,9 +243,9 @@ La fiche détaille ce que vous touchez vraiment sur un an :
 En bas de la page **PEA**, le calendrier rassemble ce que vos lignes vous ont rapporté et ce qu'elles devraient rapporter.
 
 - **À venir** : les détachements des 12 prochains mois, mois par mois, avec le montant net attendu. *Annoncé* : date et montant publiés par la source. *Estimé* : même date que l'an dernier et montant du même coupon l'an dernier ; si le dernier dividende a changé, le même changement est appliqué (TotalEnergies : acomptes passés de 0,85 € à 0,90 € → les suivants sont estimés à 0,90 €). Un changement de plus de 50 % (dividende exceptionnel) n'est pas appliqué. Les ETF capitalisants n'ont pas de dividende et n'apparaissent pas.
-- **Dividendes détachés à enregistrer** : de 15 à 90 jours après un détachement, s'il n'y a pas d'opération correspondante, Escarcelle propose de l'enregistrer, avec le montant net prérempli (quantité détenue aujourd'hui × dividende, moins la retenue à la source). Corrigez-le d'après votre relevé, puis **Enregistrer** ; **Ignorer** ne le propose plus.
+- **Dividendes détachés à enregistrer** : de 15 à 90 jours après un détachement, s'il n'y a pas d'opération correspondante, €scarcell propose de l'enregistrer, avec le montant net prérempli (quantité détenue aujourd'hui × dividende, moins la retenue à la source). Corrigez-le d'après votre relevé, puis **Enregistrer** ; **Ignorer** ne le propose plus.
 - **Perçus** : les dividendes enregistrés (ou importés avec un historique d'opérations) ; ✕ en supprime un.
-- **Année** : histogramme des dividendes nets par mois : perçus, annoncés, estimés.
+- **Année** : histogramme des dividendes nets par mois. En vert, les **perçus** : dividendes enregistrés, et dividendes détachés ces 12 derniers mois pas encore enregistrés (calculés avec la quantité détenue aujourd'hui) ; en bleu, les annoncés ; en bleu clair, les estimés.
 - **Synthèse** : dividendes nets des 12 derniers mois et des 12 prochains, rendement sur la valeur actuelle et sur le prix de revient (PRU), et les lignes qui rapportent le plus.
 
 ### Les assemblées générales
@@ -291,7 +291,7 @@ Cochez ou décochez les cases au-dessus de la courbe pour afficher ce qui vous i
 
 ### Les signaux
 
-Sous les graphiques, Escarcelle liste les signaux détectés, chacun avec son explication :
+Sous les graphiques, €scarcell liste les signaux détectés, chacun avec son explication :
 
 | Signal | Ce qu'il veut dire |
 | :--- | :--- |
@@ -322,15 +322,15 @@ Tout se passe dans **Paramètres**, en haut à droite de la fenêtre.
 
 1. Dans **Sauvegarde chiffrée**, choisissez un mot de passe d'au moins 12 caractères (une phrase de quatre ou cinq mots est facile à retenir et solide), tapez-le deux fois.
 2. Cochez **J'ai compris qu'un mot de passe oublié rend la sauvegarde illisible**.
-3. Cliquez sur **Sauvegarder (chiffré)…** et choisissez l'emplacement : le fichier `escarcelle-2026-11-25-2130.escarcelle` peut aller sur une clé USB ou dans un dossier synchronisé (OneDrive, Google Drive…), son contenu est illisible sans le mot de passe.
+3. Cliquez sur **Sauvegarder (chiffré)…** et choisissez l'emplacement : le fichier `escarcell-2026-11-25-2130.escarcell` peut aller sur une clé USB ou dans un dossier synchronisé (OneDrive, Google Drive…), son contenu est illisible sans le mot de passe.
 
 > **Le mot de passe n'est conservé nulle part.** Si vous l'oubliez, personne ne peut ouvrir la sauvegarde. Notez-le dans un gestionnaire de mots de passe.
 
-Une sauvegarde par mois est un bon rythme, et une avant chaque mise à jour d'Escarcelle. Une copie **non chiffrée** (`.db`) reste possible avec le lien sous le bouton.
+Une sauvegarde par mois est un bon rythme, et une avant chaque mise à jour d'€scarcell. Une copie **non chiffrée** (`.db`) reste possible avec le lien sous le bouton.
 
 ### Restaurer
 
-Cliquez sur **Choisir une sauvegarde…** et sélectionnez un fichier `.escarcelle` (tapez son mot de passe, puis **Ouvrir**) ou `.db`. Escarcelle affiche la date, l'ordinateur et la version de la sauvegarde ; confirmez avec **Oui, restaurer**. **Toutes les données actuelles sont remplacées**, mais Escarcelle en fait d'abord une copie de sécurité dans son dossier de données (`escarcelle-avant-restauration-….db`, les cinq dernières sont gardées). Une sauvegarde faite avec une version plus récente d'Escarcelle est refusée : mettez d'abord Escarcelle à jour.
+Cliquez sur **Choisir une sauvegarde…** et sélectionnez un fichier `.escarcell` (ou `.escarcelle`, nom d'avant 0.4) (tapez son mot de passe, puis **Ouvrir**) ou `.db`. €scarcell affiche la date, l'ordinateur et la version de la sauvegarde ; confirmez avec **Oui, restaurer**. **Toutes les données actuelles sont remplacées**, mais €scarcell en fait d'abord une copie de sécurité dans son dossier de données (`escarcell-avant-restauration-….db`, les cinq dernières sont gardées). Une sauvegarde faite avec une version plus récente d'€scarcell est refusée : mettez d'abord €scarcell à jour.
 
 ### Tout effacer
 
@@ -342,13 +342,15 @@ Le tableau liste le taux retenu par chaque pays sur les dividendes. Les valeurs 
 
 ### Nouvelles versions
 
-La case **Vérifier au démarrage** est **décochée par défaut** : Escarcelle ne contacte pas GitHub sans votre accord. Cochez-la pour être prévenu des nouvelles versions, ou cliquez de temps en temps sur **Vérifier maintenant**. Escarcelle ne fait que lire la liste des versions publiées : aucune de vos données n'est envoyée, et rien n'est téléchargé ni installé sans vous.
+La case **Vérifier au démarrage** est **décochée par défaut** : €scarcell ne contacte pas GitHub sans votre accord. Cochez-la pour être prévenu des nouvelles versions, ou cliquez de temps en temps sur **Vérifier maintenant**. €scarcell ne fait que lire la liste des versions publiées : aucune de vos données n'est envoyée, et rien n'est téléchargé ni installé sans vous.
 
-> **Connexions à Internet.** Escarcelle communique avec l'extérieur pour lire des données publiques, sans jamais transmettre vos données : Yahoo Finance pour les cours et les dividendes (seul le nom, l'ISIN ou le symbole du titre est envoyé, jamais vos quantités ou montants), et GitHub uniquement pour la vérification des versions. Les livrets et le tableau de bord fonctionnent hors ligne.
+> **Connexions à Internet.** €scarcell communique avec l'extérieur pour lire des données publiques, sans jamais transmettre vos données : Yahoo Finance pour les cours et les dividendes (seul le nom, l'ISIN ou le symbole du titre est envoyé, jamais vos quantités ou montants), et GitHub uniquement pour la vérification des versions. Les livrets et le tableau de bord fonctionnent hors ligne.
 
 ### Où sont mes données ?
 
-L'emplacement exact est affiché dans **Paramètres**. Sous Windows : `%APPDATA%\fr.chatcarbo.escarcelle\escarcelle.db`.
+L'emplacement exact est affiché dans **Paramètres**. Sous Windows : `%APPDATA%\fr.chatcarbo.escarcell\escarcell.db`.
+
+Au premier lancement après le changement de nom (Escarcelle → €scarcell), la base d'Escarcelle (`%APPDATA%\fr.chatcarbo.escarcelle\escarcelle.db`) est **copiée** automatiquement : vous retrouvez vos données, et l'ancienne base reste en place. Les sauvegardes chiffrées `.escarcelle` faites avant se restaurent normalement.
 
 ---
 
@@ -364,9 +366,9 @@ Une fenêtre vous demande où enregistrer le fichier.
 ## 9. Questions fréquentes
 
 **Les intérêts calculés ne correspondent pas exactement à mon relevé.**
-Vérifiez que les dates saisies sont bien les **dates de valeur** du relevé. Si vous avez démarré avec un versement unique égal à votre solde, les intérêts de la première année sont sous-estimés (les quinzaines antérieures ne sont pas connues d'Escarcelle).
+Vérifiez que les dates saisies sont bien les **dates de valeur** du relevé. Si vous avez démarré avec un versement unique égal à votre solde, les intérêts de la première année sont sous-estimés (les quinzaines antérieures ne sont pas connues d'€scarcell).
 
-**Escarcelle refuse un virement daté d'avant 2020.**
+**€scarcell refuse un virement daté d'avant 2020.**
 Les taux des livrets sont connus depuis le 1er février 2020. Saisissez un **solde de départ** (le solde d'un relevé, intérêts compris, daté du 1er février 2020 ou après), puis les virements suivants.
 
 **Un titre est introuvable dans la recherche.**
@@ -385,11 +387,11 @@ Vérifiez votre connexion Internet. Si Yahoo Finance ne répond pas, un message 
 Le titre est coté depuis moins de 30 séances, ou la source ne fournit pas son historique.
 
 **Les taux des livrets ont changé.**
-Les taux sont révisés au 1er février et au 1er août. Ils sont inclus dans Escarcelle : mettez à jour le logiciel après chaque révision.
+Les taux sont révisés au 1er février et au 1er août. Ils sont inclus dans €scarcell : mettez à jour le logiciel après chaque révision.
 
-**Escarcelle peut-il passer des ordres ou se connecter à ma banque ?**
-Non. Escarcelle est un outil de suivi : il ne se connecte à aucune banque et ne passe aucun ordre.
+**€scarcell peut-il passer des ordres ou se connecter à ma banque ?**
+Non. €scarcell est un outil de suivi : il ne se connecte à aucune banque et ne passe aucun ordre.
 
 ---
 
-*Escarcelle est un logiciel libre (licence GPL-3.0), développé par ChatCarbo. Simulations à titre informatif : ne remplace ni un conseiller en investissements financiers ni l'administration fiscale.*
+*€scarcell est un logiciel libre (licence GPL-3.0), développé par ChatCarbo. Simulations à titre informatif : ne remplace ni un conseiller en investissements financiers ni l'administration fiscale.*

@@ -1,6 +1,6 @@
 //! Alertes (détachements de dividendes, assemblées générales) et vérification des nouvelles versions.
 
-use escarcelle_core::Date;
+use escarcell_core::Date;
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -210,7 +210,7 @@ pub fn verification_auto(etat: State<'_, Etat>, activer: Option<bool>) -> Result
     if let Some(a) = activer {
         db.definir_parametre("maj.auto", if a { "1" } else { "0" }).map_err(err)?;
     }
-    // Désactivée par défaut : Escarcelle ne contacte aucun serveur sans l'accord de l'utilisateur.
+    // Désactivée par défaut : €scarcell ne contacte aucun serveur sans l'accord de l'utilisateur.
     Ok(db.parametre("maj.auto").map_err(err)?.as_deref() == Some("1"))
 }
 

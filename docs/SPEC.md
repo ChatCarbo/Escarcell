@@ -1,4 +1,4 @@
-# Escarcelle — Spécification
+# €scarcell — Spécification
 
 > Version du document : 14 — 26/11/2026 — version 0.4 en cours (lot 1 : sauvegarde chiffrée ; lot 2 : import CSV ; livrets : intérêts cumulés et maximaux)
 > Auteur : ChatCarbo — Licence GPL-3.0-or-later
@@ -8,7 +8,7 @@
 
 ## 1. Présentation
 
-Escarcelle est un logiciel de bureau **libre, gratuit et local** pour suivre son épargne en France.
+€scarcell est un logiciel de bureau **libre, gratuit et local** pour suivre son épargne en France.
 
 | Principe | Conséquence |
 | :--- | :--- |
@@ -16,7 +16,7 @@ Escarcelle est un logiciel de bureau **libre, gratuit et local** pour suivre son
 | Simple | On saisit ce qu'on détient. Pas d'établissement bancaire à renseigner, pas d'agrégation bancaire. |
 | Exact | Les montants sont calculés en nombres entiers (centimes), jamais en nombres à virgule flottante. |
 | Explicable | Chaque calcul et chaque conseil est accompagné de son explication en clair. |
-| Honnête | Escarcelle ne perçoit rien d'aucun établissement et ne donne pas de conseil en investissement. |
+| Honnête | €scarcell ne perçoit rien d'aucun établissement et ne donne pas de conseil en investissement. |
 
 Mention affichée en permanence : *« Simulations à titre informatif. Ne remplace ni un conseiller (CIF) ni l'administration fiscale. »*
 
@@ -81,7 +81,7 @@ L'utilisateur indique qu'il possède un livret (« J'ai un Livret A »), puis sa
 
 ### 4.3 Conseils de dates
 
-Dès que l'utilisateur choisit une date et un montant, Escarcelle affiche un message et une frise colorée.
+Dès que l'utilisateur choisit une date et un montant, €scarcell affiche un message et une frise colorée.
 
 | Cas | Message | Calcul |
 | :--- | :--- | :--- |
@@ -113,7 +113,7 @@ Rappel affiché : les dates sont des **dates de valeur** ; un virement fait un v
 
 ### 5.1 Principe
 
-L'utilisateur saisit ce qu'il détient : **titre, quantité, PRU** (le prix de revient affiché par sa banque, frais de courtage inclus). Escarcelle récupère les cours et les dividendes, puis calcule les gains. Il n'y a ni établissement ni journal d'opérations.
+L'utilisateur saisit ce qu'il détient : **titre, quantité, PRU** (le prix de revient affiché par sa banque, frais de courtage inclus). €scarcell récupère les cours et les dividendes, puis calcule les gains. Il n'y a ni établissement ni journal d'opérations.
 
 | Règle | Détail |
 | :--- | :--- |
@@ -121,7 +121,7 @@ L'utilisateur saisit ce qu'il détient : **titre, quantité, PRU** (le prix de r
 | Plus-value | Pas d'impôt tant que l'argent reste dans le plan |
 | Dividendes français | Encaissés sans impôt |
 | Dividendes étrangers | Retenue à la source du pays, **perdue** (aucun impôt français sur lequel l'imputer) |
-| Plafond | 150 000 € de versements (non contrôlé : Escarcelle suit des lignes, pas les versements) |
+| Plafond | 150 000 € de versements (non contrôlé : €scarcell suit des lignes, pas les versements) |
 | Saisie | Quantité positive (dix millions de titres au plus), PRU entre 0 et 1 000 000 € |
 
 ### 5.2 Recherche de titres
@@ -266,7 +266,7 @@ Source conseillée pour les dates d'AG des sociétés françaises : l'avis de r�
 
 ### 6.2 Nouvelles versions
 
-Si l'utilisateur l'active dans Paramètres (**désactivé par défaut**, pour qu'Escarcelle ne contacte aucun serveur sans son accord), Escarcelle demande au démarrage à GitHub la liste des versions publiées du dépôt (`repository` de `app/src-tauri/Cargo.toml`) et compare la plus récente, préversions comprises, à la version installée. Si elle est plus récente, un bandeau propose d'ouvrir la page de la version. Aucune donnée d'Escarcelle n'est envoyée (GitHub voit seulement l'adresse IP, comme pour toute page web) ; rien n'est téléchargé ni installé automatiquement. Bouton « Vérifier maintenant » dans Paramètres.
+Si l'utilisateur l'active dans Paramètres (**désactivé par défaut**, pour qu'€scarcell ne contacte aucun serveur sans son accord), €scarcell demande au démarrage à GitHub la liste des versions publiées du dépôt (`repository` de `app/src-tauri/Cargo.toml`) et compare la plus récente, préversions comprises, à la version installée. Si elle est plus récente, un bandeau propose d'ouvrir la page de la version. Aucune donnée d'€scarcell n'est envoyée (GitHub voit seulement l'adresse IP, comme pour toute page web) ; rien n'est téléchargé ni installé automatiquement. Bouton « Vérifier maintenant » dans Paramètres.
 
 ### 6.3 Connexions réseau
 
@@ -275,7 +275,7 @@ Si l'utilisateur l'active dans Paramètres (**désactivé par défaut**, pour qu
 | Yahoo Finance | Page PEA : recherche, cours, dividendes, courbes | Texte recherché, ISIN ou symbole du titre ; jamais de quantité, de PRU ni de montant |
 | GitHub (api.github.com) | Vérification des versions, si activée, ou bouton « Vérifier maintenant » | Liste des versions publiées |
 
-Aucune autre connexion. Escarcelle communique donc avec l'extérieur pour lire des données publiques, mais **ne transmet aucune donnée de l'utilisateur**. Les pages Livrets et Tableau de bord fonctionnent hors ligne (le tableau de bord utilise les derniers cours enregistrés).
+Aucune autre connexion. €scarcell communique donc avec l'extérieur pour lire des données publiques, mais **ne transmet aucune donnée de l'utilisateur**. Les pages Livrets et Tableau de bord fonctionnent hors ligne (le tableau de bord utilise les derniers cours enregistrés).
 
 ---
 
@@ -283,15 +283,15 @@ Aucune autre connexion. Escarcelle communique donc avec l'extérieur pour lire d
 
 | Action | Fonctionnement |
 | :--- | :--- |
-| Sauvegarde chiffrée (0.4) | Fichier `escarcelle-AAAA-MM-JJ-HHMM.escarcelle` chiffré par mot de passe (§7.2) ; mot de passe de 12 caractères minimum, saisi deux fois, avec indicateur de robustesse et case « j'ai compris qu'un oubli rend la sauvegarde illisible » |
-| Sauvegarde non chiffrée | Copie cohérente de toute la base (`escarcelle-AAAA-MM-JJ.db`), toujours proposée en lien secondaire |
-| Restaurer | Fichier `.escarcelle` (mot de passe demandé) ou `.db`. Affiche la date, l'appareil et la version de la sauvegarde, demande confirmation, fait une **copie de sécurité** de la base actuelle (`escarcelle-avant-restauration-AAAAMMJJ-HHMMSS.db` dans le dossier de données, 5 dernières conservées), remplace les données, met le schéma à jour si la sauvegarde est ancienne et **refuse** une sauvegarde venant d'une version plus récente |
+| Sauvegarde chiffrée (0.4) | Fichier `escarcell-AAAA-MM-JJ-HHMM.escarcell` chiffré par mot de passe (§7.2) ; mot de passe de 12 caractères minimum, saisi deux fois, avec indicateur de robustesse et case « j'ai compris qu'un oubli rend la sauvegarde illisible » |
+| Sauvegarde non chiffrée | Copie cohérente de toute la base (`escarcell-AAAA-MM-JJ.db`), toujours proposée en lien secondaire |
+| Restaurer | Fichier `.escarcell` ou `.escarcelle` (nom d'avant le changement ; mot de passe demandé) ou `.db`. Affiche la date, l'appareil et la version de la sauvegarde, demande confirmation, fait une **copie de sécurité** de la base actuelle (`escarcell-avant-restauration-AAAAMMJJ-HHMMSS.db` dans le dossier de données, 5 dernières conservées), remplace les données, met le schéma à jour si la sauvegarde est ancienne et **refuse** une sauvegarde venant d'une version plus récente |
 | Écritures | Toute sauvegarde est écrite dans un fichier temporaire puis renommée : un échec ne détruit pas une ancienne sauvegarde du même nom |
 | Tout effacer | Supprime toutes les données après saisie du mot EFFACER ; le schéma est conservé |
 | Retenues à la source | Tableau des pays : taux en vigueur, taux par défaut, modification et retour à la valeur par défaut |
 | Nouvelles versions | Vérification au démarrage (case à cocher) et « Vérifier maintenant » |
 
-### 7.2 Format de la sauvegarde chiffrée (`.escarcelle`)
+### 7.2 Format de la sauvegarde chiffrée (`.escarcell`)
 
 | Partie | Contenu | Chiffré |
 | :--- | :--- | :--- |
@@ -304,7 +304,7 @@ Aucune autre connexion. Escarcelle communique donc avec l'extérieur pour lire d
 - Bibliothèques RustCrypto (`argon2`, `chacha20poly1305`), aléa du système (`getrandom`), clé et données en clair effacées de la mémoire après usage (`zeroize`).
 - Mot de passe faux et fichier altéré donnent le même message, sans dire lequel.
 - Le format est vérifié par un **vecteur de référence produit par une implémentation indépendante** (Python, bibliothèque `cryptography`), en plus des tests d'aller-retour.
-- Écart à la spécification 0.4 : les données ne sont pas compressées (une base Escarcelle pèse quelques centaines de Kio) ; la sauvegarde automatique n'est pas encore faite (question ouverte : mémoriser le mot de passe dans le coffre Windows).
+- Écart à la spécification 0.4 : les données ne sont pas compressées (une base €scarcell pèse quelques centaines de Kio) ; la sauvegarde automatique n'est pas encore faite (question ouverte : mémoriser le mot de passe dans le coffre Windows).
 
 ### 7.3 Import (0.4, lot 2)
 
@@ -331,10 +331,10 @@ Un seul bouton **Importer…** sur la page PEA, à côté d'« Exporter en CSV �
 | Erreurs (ligne non importée) | Champ illisible, ISIN invalide, type impossible pour le compte, devise autre que l'euro, date future, livret avant le 01/02/2020, PEA avant juillet 1992, vente supérieure à la quantité détenue à sa date, retrait supérieur au solde, solde de départ en double ou postérieur à une opération, solde de départ au-delà d'une fois et demie le plafond |
 | Avertissements (ligne importée) | Versement au-delà du plafond, montant d'achat ou de vente différent du calcul, opération antérieure à l'ouverture du PEA, ligne du PEA saisie à la main remplacée par le calcul du journal |
 | Livrets | Contrôle à la date de valeur avec l'historique complet (opérations enregistrées + lignes retenues). Une ligne refusée pouvant en rendre une autre impossible, le refus se fait jour après jour, en recalculant. Une opération déjà enregistrée qui deviendrait impossible bloque tout l'import |
-| Intérêts des livrets | Jamais importés : comparés au calcul d'Escarcelle par année (crédités au 31/12 ou avant le 16/01 : année précédente) ; « conformes » ou écart affiché ; pas de comparaison pour l'année en cours ni si l'historique commence par un solde de départ en cours d'année |
+| Intérêts des livrets | Jamais importés : comparés au calcul d'€scarcell par année (crédités au 31/12 ou avant le 16/01 : année précédente) ; « conformes » ou écart affiché ; pas de comparaison pour l'année en cours ni si l'historique commence par un solde de départ en cours d'année |
 | Doublons | Même compte, date, type, ISIN, quantité et montant qu'une opération enregistrée, comptés un pour un (deux lignes identiques face à une seule opération : un doublon et une ligne valide). Ignorés par défaut, importables sur demande |
-| PEA | Quantité et PRU de chaque titre recalculés à partir de tout le journal (`escarcelle-core::journal`) : PRU = coût frais compris / quantité, inchangé par une vente, remis à zéro quand la ligne est soldée ; le même jour, achats avant ventes. La ligne obtenue est marquée « importée » : quantité et PRU non modifiables à la main |
-| Écriture | Seules les lignes retenues, en une transaction. Copie de sécurité juste avant (`escarcelle-avant-import-AAAAMMJJ-HHMMSS.db`, 5 dernières), restaurable dans Paramètres ; pas d'annulation d'un import (retirée : la copie de sécurité suffit). Comptes manquants ouverts à la date de leur première opération. Symbole de cotation des nouveaux titres cherché par ISIN (sinon l'ISIN sert de symbole) |
+| PEA | Quantité et PRU de chaque titre recalculés à partir de tout le journal (`escarcell-core::journal`) : PRU = coût frais compris / quantité, inchangé par une vente, remis à zéro quand la ligne est soldée ; le même jour, achats avant ventes. La ligne obtenue est marquée « importée » : quantité et PRU non modifiables à la main |
+| Écriture | Seules les lignes retenues, en une transaction. Copie de sécurité juste avant (`escarcell-avant-import-AAAAMMJJ-HHMMSS.db`, 5 dernières), restaurable dans Paramètres ; pas d'annulation d'un import (retirée : la copie de sécurité suffit). Comptes manquants ouverts à la date de leur première opération. Symbole de cotation des nouveaux titres cherché par ISIN (sinon l'ISIN sert de symbole) |
 | Correspondances | Associations colonne → champ enregistrées sous un nom, appliquées par intitulé de colonne |
 | Rapport | Export CSV de toutes les lignes avec statut, « importée » et messages |
 
@@ -350,7 +350,7 @@ Un seul bouton **Importer…** sur la page PEA, à côté d'« Exporter en CSV �
 
 Format CSV : séparateur « ; », virgule décimale, UTF-8 avec BOM, pour une ouverture directe dans Excel ou LibreOffice en français. Images PNG en double résolution, aux couleurs du thème. L'emplacement est choisi par l'utilisateur ; seules les extensions `.csv` et `.png` sont acceptées par la commande d'enregistrement.
 
-L'emplacement du fichier de données est affiché (sous Windows : `%APPDATA%\fr.chatcarbo.escarcelle\escarcelle.db`).
+L'emplacement du fichier de données est affiché (sous Windows : `%APPDATA%\fr.chatcarbo.escarcell\escarcell.db`). Changement de nom (0.4) : si cette base n'existe pas, celle d'Escarcelle (`fr.chatcarbo.escarcelle\escarcelle.db`, avec son journal) est copiée au démarrage, sans modifier l'original.
 
 ---
 
@@ -376,7 +376,7 @@ Les conversions depuis la saisie (« 1 234,56 ») se font une seule fois, à l'e
 | Plafonds | 22 950 € · 12 000 € · 10 000 € |
 | Retenues à la source | Tableau du §5.6 |
 
-À mettre à jour à chaque révision des taux (1er février, 1er août) dans `crates/escarcelle-core/src/params.rs` ; les retenues à la source sont dans `dividendes.rs`. La mise à jour par fichier signé est prévue (§9).
+À mettre à jour à chaque révision des taux (1er février, 1er août) dans `crates/escarcell-core/src/params.rs` ; les retenues à la source sont dans `dividendes.rs`. La mise à jour par fichier signé est prévue (§9).
 
 ### 8.3 Stockage
 
@@ -396,7 +396,7 @@ Un seul fichier SQLite, schéma versionné et migré automatiquement à l'ouvert
 ### 8.4 Organisation du code
 
 ```
-crates/escarcelle-core     Calculs, sans dépendance ni accès réseau :
+crates/escarcell-core     Calculs, sans dépendance ni accès réseau :
                         date, money, price, rate, params, livret, conseil_livret,
                         analyse, chandeliers, dividendes, identifiants
 app/src-tauri           Application Tauri v2 : stockage SQLite, cours et dividendes Yahoo,
@@ -440,7 +440,7 @@ Commandes de l'interface V1 : `tableau_de_bord`, `livrets`, `ouvrir_livret`, `co
 | **0.3 — stabilisation** | CTO et PEA-PME supprimés ; historique des taux des livrets depuis 2020 ; contrôles de saisie côté Rust ; **aucune nouvelle fonction** : code mort supprimé ; vérification des versions désactivée par défaut ; intégration continue ; fiscalité (flat tax, crédit d'impôt, retenues) testée contre des sources officielles (BOFiP, impots.gouv.fr, conventions fiscales) ; intérêts des livrets comparés à de vrais relevés ; deux à trois semaines d'utilisation réelle, une issue GitHub par problème, chaque issue corrigée avec un test | En cours |
 | 0.4 | **Import CSV des opérations** du PEA et des livrets (§7.3) : aperçu ligne par ligne, import tout ou rien après copie de sécurité, PRU recalculés par le journal ; import en un clic des exports de portefeuille (Moning, BoursoBank, Fortuneo) | Fait (lot 2) |
 | 0.4 | Livrets : **intérêt maximal de l'année en cours** sur chaque carte = maximum théorique d'un livret resté au plafond du 1er janvier au 31 décembre, soit la somme, sur les 24 quinzaines, de plafond × taux de la quinzaine / 24, arrondie au centime une fois. En 2026 : Livret A 367,20 € (22 950 € à 1,60 % en moyenne), LDDS 192,00 €, LEP 251,67 € | Demandé, reporté après la stabilisation |
-| 0.4 | PEA : **simulation d'un retrait et de son impôt**. À saisir : date d'ouverture du plan et total des versements (aujourd'hui, Escarcelle suit des lignes, pas les versements). Calcul : gain contenu dans le retrait au prorata (gain total × retrait / valeur du plan) ; avant 5 ans, retrait = clôture (sauf exceptions) et gain soumis à l'impôt sur le revenu et aux prélèvements sociaux ; après 5 ans, prélèvements sociaux seuls et retraits partiels possibles sans clôture. Taux et règles à vérifier sur les sources officielles (BOFiP, service-public.fr) au moment du développement, chacun couvert par un test | Demandé |
+| 0.4 | PEA : **simulation d'un retrait et de son impôt**. À saisir : date d'ouverture du plan et total des versements (aujourd'hui, €scarcell suit des lignes, pas les versements). Calcul : gain contenu dans le retrait au prorata (gain total × retrait / valeur du plan) ; avant 5 ans, retrait = clôture (sauf exceptions) et gain soumis à l'impôt sur le revenu et aux prélèvements sociaux ; après 5 ans, prélèvements sociaux seuls et retraits partiels possibles sans clôture. Taux et règles à vérifier sur les sources officielles (BOFiP, service-public.fr) au moment du développement, chacun couvert par un test | Demandé |
 | 0.4 | **Calendrier des dividendes** (lot 4) : détachements des 12 prochains mois annoncés ou estimés (même date que l'an dernier ; montant du même coupon, ajusté du changement du dernier dividende par rapport à son équivalent un an plus tôt, sauf au-delà de ±50 %), dividendes détachés à enregistrer (de 15 à 90 jours après le détachement, sans opération de dividende de la ligne datée de 7 jours avant à 60 jours après ; montant net prérempli, modifiable ; « Ignorer » mémorisé), dividendes perçus (opérations, montant net crédité), histogramme mensuel perçu / annoncé / estimé, synthèse (12 derniers et 12 prochains mois, rendement sur valeur et sur PRU, 5 premières lignes) | Fait (lot 4) |
 | 0.4 | ~~Calcul de performance (TRI, TWR)~~ : **supprimé** (26/11/2026). Il demande l'historique daté des versements et des achats, que les exports de portefeuille ne donnent pas. À reprendre avec l'import d'historique des courtiers | Supprimé |
 | 0.4 | **Évolution du patrimoine** (courbe mensuelle livrets + PEA et montant net versé, tableau annuel) et **frais** (total payé, part des montants investis) ; **analyse technique gelée** : aucun nouvel indicateur. Détail dans la spécification 0.4 (§2 bis) | Ajouté à la spec 0.4 |

@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["crates/escarcelle-core"]
+members = ["crates/escarcell-core"]
 
 [workspace.package]
 version = "0.4.0"
 edition = "2021"
 authors = ["ChatCarbo"]
 license = "GPL-3.0-or-later"
-repository = "https://github.com/ChatCarbo/escarcelle"
+repository = "https://github.com/ChatCarbo/escarcell"
 rust-version = "1.75"

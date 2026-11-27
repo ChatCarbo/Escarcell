@@ -959,13 +959,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "escarcelle-app"
+name = "escarcell"
 version = "0.4.0"
 dependencies = [
  "argon2",
  "calamine",
  "chacha20poly1305",
- "escarcelle-core",
+ "escarcell-core",
  "getrandom 0.2.17",
  "reqwest 0.12.28",
  "rusqlite",
@@ -980,7 +980,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "escarcelle-core"
+name = "escarcell-core"
 version = "0.4.0"
 
 [[package]]

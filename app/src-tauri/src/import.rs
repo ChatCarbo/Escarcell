@@ -7,15 +7,15 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use escarcelle_core::import_csv::{
+use escarcell_core::import_csv::{
     analyser_ligne, decoder, detecter_decimale, detecter_separateur, lire_csv, modele, proposer_correspondance,
     valeurs_numeriques, verifier_correspondance, Champ, CompteImport, Decimale, Enregistrement, LigneImport,
     TypeImport,
 };
-use escarcelle_core::import_positions::{est_html, lire_html, reconnaitre, Genre};
-use escarcelle_core::journal::{rejouer, ErreurJournal, MouvementTitre, SensTitre};
-use escarcelle_core::livret::{Anomalie, Mouvement};
-use escarcelle_core::{Date, Money, Price};
+use escarcell_core::import_positions::{est_html, lire_html, reconnaitre, Genre};
+use escarcell_core::journal::{rejouer, ErreurJournal, MouvementTitre, SensTitre};
+use escarcell_core::livret::{Anomalie, Mouvement};
+use escarcell_core::{Date, Money, Price};
 use serde::Serialize;
 use tauri::State;
 
@@ -166,7 +166,7 @@ fn cellule(c: &calamine::Data) -> String {
         Data::Float(f) => nombre(*f),
         Data::Bool(b) => b.to_string(),
         Data::DateTime(d) => {
-            escarcelle_core::import_positions::date_excel(d.as_f64()).map(|d| d.to_string()).unwrap_or_default()
+            escarcell_core::import_positions::date_excel(d.as_f64()).map(|d| d.to_string()).unwrap_or_default()
         }
         // Variante ajoutée par une version future de calamine : cellule ignorée.
         #[allow(unreachable_patterns)]
@@ -479,7 +479,7 @@ fn analyser_tableau(
             }
         }
 
-        // Intérêts du fichier : comparés au calcul d'Escarcelle, année par année, jamais importés.
+        // Intérêts du fichier : comparés au calcul d'€scarcell, année par année, jamais importés.
         let lignes_interets: Vec<usize> = t
             .iter()
             .enumerate()
@@ -511,10 +511,10 @@ fn analyser_tableau(
                 let calcule = annees.iter().find(|a| a.annee == annee).map(|a| a.interets).unwrap_or(Money::ZERO);
                 let fichier = fichier_par_annee[&annee];
                 if calcule == fichier {
-                    format!("intérêts {annee} conformes au calcul d'Escarcelle ({calcule}) ; non importés, ils sont recalculés")
+                    format!("intérêts {annee} conformes au calcul d'€scarcell ({calcule}) ; non importés, ils sont recalculés")
                 } else {
                     format!(
-                        "intérêts {annee} : Escarcelle calcule {calcule}, le fichier indique {fichier} ; vérifiez les opérations de l'année (non importés, ils sont recalculés)"
+                        "intérêts {annee} : €scarcell calcule {calcule}, le fichier indique {fichier} ; vérifiez les opérations de l'année (non importés, ils sont recalculés)"
                     )
                 }
             };
@@ -882,7 +882,7 @@ mod tests {
                 Statut::Ignoree
             ]
         );
-        assert!(a.dto.lignes[6].messages[0].contains("Escarcelle calcule"), "{:?}", a.dto.lignes[6].messages);
+        assert!(a.dto.lignes[6].messages[0].contains("€scarcell calcule"), "{:?}", a.dto.lignes[6].messages);
         assert_eq!(a.plan.comptes.len(), 2);
         assert_eq!(a.plan.comptes.iter().find(|c| c.type_ == "PEA").unwrap().ouverture, "2025-01-02");
         db.importer(&a.plan).unwrap();
@@ -899,7 +899,7 @@ mod tests {
         let b = analyse(&db, &csv, false);
         assert_eq!(b.dto.compteurs.doublons, 6);
         assert_eq!(b.dto.compteurs.a_importer, 0);
-        assert!(b.dto.lignes[6].messages[0].contains("Escarcelle calcule"));
+        assert!(b.dto.lignes[6].messages[0].contains("€scarcell calcule"));
     }
 
     #[test]

@@ -4,10 +4,10 @@
 
 use std::collections::BTreeSet;
 
-use escarcelle_core::calendrier::{non_rapproches, par_mois, prevus, Categorie, Statut};
-use escarcelle_core::dividendes::{dividende_net, Versement};
-use escarcelle_core::livret::MONTANT_MAX;
-use escarcelle_core::{Date, Price, Rate};
+use escarcell_core::calendrier::{non_rapproches, par_mois, prevus, Categorie, Statut};
+use escarcell_core::dividendes::{dividende_net, Versement};
+use escarcell_core::livret::MONTANT_MAX;
+use escarcell_core::{Date, Money, Price, Rate};
 use serde::Serialize;
 use tauri::State;
 
@@ -68,6 +68,8 @@ pub struct CalendrierDto {
     pub percus: Vec<PercuDto>,
     pub annee: i32,
     pub annees: Vec<i32>,
+    /// Par mois : perçu (dividendes enregistrés, et détachements des 12 derniers mois pas encore enregistrés),
+    /// annoncé, estimé.
     pub mois: Vec<MoisDto>,
 }
 
@@ -108,6 +110,9 @@ pub fn calculer(db: &Store, jour: Date, annee: Option<i32>) -> Resultat<Calendri
     let ignores: BTreeSet<(String, String)> = db.dividendes_ignores().map_err(err)?.into_iter().collect();
     let horizon = jour.plus_annees(1);
     let (mut a_venir, mut a_rapprocher) = (Vec::new(), Vec::new());
+    // Détachements des 12 derniers mois sans opération enregistrée : comptés comme perçus dans la vue par
+    // mois (quantité détenue aujourd'hui, comme le total « 12 derniers mois » de la page PEA).
+    let mut detaches_12_mois: Vec<(Date, Money)> = Vec::new();
     for p in &positions {
         let h = historique(db, &p.symbole)?;
         let taux = match pays_ligne(p) {
@@ -129,6 +134,14 @@ pub fn calculer(db: &Store, jour: Date, annee: Option<i32>) -> Resultat<Calendri
         let detaches: Vec<&Versement> = h.iter().filter(fenetre).filter(|v| v.montant.micro() > 0).collect();
         let operations: Vec<Date> =
             percus.iter().filter(|d| de_la_ligne(d, p)).filter_map(|d| d.date.parse().ok()).collect();
+        let recents: Vec<&Versement> =
+            h.iter().filter(|v| v.date > jour.plus_annees(-1) && v.date <= jour && v.montant.micro() > 0).collect();
+        let dates_recentes: Vec<Date> = recents.iter().map(|v| v.date).collect();
+        for d in non_rapproches(&dates_recentes, &operations) {
+            if let Some(v) = recents.iter().find(|v| v.date == d) {
+                detaches_12_mois.push((d, Money::from_cents(element(p, d, v.montant, "", taux).net_cents)));
+            }
+        }
         let dates: Vec<Date> = detaches.iter().map(|v| v.date).collect();
         for d in non_rapproches(&dates, &operations) {
             if ignores.contains(&(p.symbole.clone(), d.to_string())) {
@@ -155,13 +168,16 @@ pub fn calculer(db: &Store, jour: Date, annee: Option<i32>) -> Resultat<Calendri
     let mut montants = Vec::new();
     for d in &percus {
         if let Ok(date) = d.date.parse::<Date>() {
-            montants.push((date, escarcelle_core::Money::from_cents(d.montant_cents), Categorie::Percu));
+            montants.push((date, Money::from_cents(d.montant_cents), Categorie::Percu));
         }
+    }
+    for (d, m) in &detaches_12_mois {
+        montants.push((*d, *m, Categorie::Percu));
     }
     for a in &a_venir {
         if let Ok(date) = a.date.parse::<Date>() {
             let c = if a.statut == "annonce" { Categorie::Annonce } else { Categorie::Estime };
-            montants.push((date, escarcelle_core::Money::from_cents(a.net_cents), c));
+            montants.push((date, Money::from_cents(a.net_cents), c));
         }
     }
     let mois = par_mois(annee, &montants)
@@ -281,13 +297,16 @@ mod tests {
         assert_eq!(c.a_rapprocher.len(), 1);
         assert_eq!((c.a_rapprocher[0].date.as_str(), c.a_rapprocher[0].net_cents), ("2026-09-30", 4_500));
         assert_eq!(c.mois[11].estime_cents, 4_500);
+        // Détachés en 2026 (mars, juin, septembre) : perçus, même sans opération enregistrée.
+        assert_eq!((c.mois[2].percu_cents, c.mois[5].percu_cents, c.mois[8].percu_cents), (4_250, 4_250, 4_500));
 
         enregistrer(&mut db, "TTE.PA", "2026-10-02", 4_500, jour()).unwrap();
         let c = calculer(&db, jour(), None).unwrap();
         assert!(c.a_rapprocher.is_empty());
         assert_eq!(c.percus.len(), 1);
         assert_eq!(c.percus[0].nom, "TotalEnergies");
-        assert_eq!(c.mois[9].percu_cents, 4_500);
+        // L'opération du 02/10 remplace le détachement du 30/09 (pas de double compte).
+        assert_eq!((c.mois[8].percu_cents, c.mois[9].percu_cents), (0, 4_500));
 
         db.supprimer_dividende(c.percus[0].id).unwrap();
         db.ignorer_dividende("TTE.PA", "2026-09-30").unwrap();
@@ -295,7 +314,8 @@ mod tests {
         assert!(c.a_rapprocher.is_empty() && c.percus.is_empty());
         let c = calculer(&db, jour(), Some(2027)).unwrap();
         assert_eq!(c.mois[2].estime_cents, 4_500);
-        assert_eq!(c.annees, vec![2026, 2027]);
+        // 2025 : acompte détaché le 31/12/2025, dans les 12 derniers mois.
+        assert_eq!(c.annees, vec![2025, 2026, 2027]);
     }
 
     #[test]

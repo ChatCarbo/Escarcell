@@ -1,21 +1,21 @@
 <p align="center">
-  <img src="docs/images/logo.svg" alt="Logo Escarcelle" width="120">
+  <img src="docs/images/logo.svg" alt="Logo €scarcell" width="120">
 </p>
 
-<h1 align="center">Escarcelle</h1>
+<h1 align="center">€scarcell</h1>
 
 <p align="center">
   <strong>Logiciel libre, gratuit et local pour suivre ses livrets réglementés et son PEA.</strong><br>
-  Vos données restent sur votre ordinateur : pas de compte, pas de serveur Escarcelle, pas de connexion à votre banque.
+  Vos données restent sur votre ordinateur : pas de compte, pas de serveur €scarcell, pas de connexion à votre banque.
 </p>
 
 <p align="center">
-  <a href="https://github.com/ChatCarbo/escarcelle/actions/workflows/ci.yml"><img src="https://github.com/ChatCarbo/escarcelle/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/ChatCarbo/escarcell/actions/workflows/ci.yml"><img src="https://github.com/ChatCarbo/escarcell/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-> Version 0.3 : stabilisation. Escarcelle suit les livrets réglementés et le PEA ; le compte-titres et le PEA-PME de la 0.2 ont été retirés.
+> **€scarcell**, anciennement *Escarcelle* (nom changé pour ne pas être confondu avec un logiciel homonyme). Version 0.4 en cours : sauvegarde chiffrée, import des exports de portefeuille et d'opérations, calendrier des dividendes. €scarcell suit les livrets réglementés et le PEA.
 
-## Ce que fait Escarcelle
+## Ce que fait €scarcell
 
 - **Livrets réglementés** (Livret A, LDDS, LEP) : virements, soldes, plafonds, intérêts calculés par quinzaines, et conseils pour verser et retirer au bon moment, avec une frise colorée.
 - **PEA** : recherche d'actions et d'ETF européens, saisie des lignes (quantité, PRU), cours automatiques, plus ou moins-values.
@@ -46,12 +46,12 @@
 
 Vos livrets, vos lignes, vos montants et vos réglages sont enregistrés dans un seul fichier sur votre ordinateur. Ils ne sont envoyés nulle part.
 
-Escarcelle communique avec l'extérieur pour **lire** des données publiques (cours, dividendes), mais **ne transmet aucune de vos données**. Il se connecte seulement aux services suivants :
+€scarcell communique avec l'extérieur pour **lire** des données publiques (cours, dividendes), mais **ne transmet aucune de vos données**. Il se connecte seulement aux services suivants :
 
 | Service | Quand | Ce qui est envoyé |
 | :--- | :--- | :--- |
 | Yahoo Finance | Sur la page PEA : recherche d'un titre, cours, dividendes, courbes | Le nom, l'ISIN ou le symbole du titre recherché ou affiché (par exemple `MC.PA`). Jamais vos quantités, PRU ni montants. |
-| GitHub | Seulement si vous activez « Vérifier les nouvelles versions » dans Paramètres (**désactivé par défaut**), ou si vous cliquez sur « Vérifier maintenant » | Une demande de la liste des versions publiées. Aucune donnée d'Escarcelle. |
+| GitHub | Seulement si vous activez « Vérifier les nouvelles versions » dans Paramètres (**désactivé par défaut**), ou si vous cliquez sur « Vérifier maintenant » | Une demande de la liste des versions publiées. Aucune donnée d'€scarcell. |
 
 Comme pour toute connexion à Internet, ces services voient votre adresse IP. Les pages Livrets et Tableau de bord fonctionnent entièrement hors ligne.
 
@@ -65,7 +65,7 @@ Comme pour toute connexion à Internet, ces services voient votre adresse IP. Le
 ## Structure
 
 ```
-crates/escarcelle-core    Calculs (livrets, analyse technique, dividendes du PEA…), sans dépendance
+crates/escarcell-core    Calculs (livrets, analyse technique, dividendes du PEA…), sans dépendance
 app/                      Application de bureau : Tauri v2 (Rust) + Svelte, stockage SQLite
 docs/                     Documentation
 .github/                  Intégration continue (format, lint, tests) et modèle d'issue
@@ -84,16 +84,16 @@ Ces vérifications tournent automatiquement sur GitHub à chaque envoi (intégra
 
 Principes : montants en centimes, aucun flottant pour l'argent, chaque règle couverte par un test, aucun code mort. Les règles sont testées contre les textes officiels (BOFiP, service-public.fr) cités dans `tests/fiscalite.rs` et `tests/reference.rs`, et `tests/robustesse.rs` vérifie qu'aucun calcul ne plante sur des données vides ou mal formées.
 
-Un problème ? Ouvrez une [issue](https://github.com/ChatCarbo/escarcelle/issues/new?template=probleme.md), avec si possible la source du bon résultat (relevé, service-public.fr, BOFiP).
+Un problème ? Ouvrez une [issue](https://github.com/ChatCarbo/escarcell/issues/new?template=probleme.md), avec si possible la source du bon résultat (relevé, service-public.fr, BOFiP).
 
 ## Avertissement
 
-Escarcelle fournit des simulations à titre informatif. Il ne remplace ni un conseiller en investissements financiers (CIF) ni l'administration fiscale. L'analyse technique décrit le passé et ne constitue pas un conseil d'achat ou de vente.
+€scarcell fournit des simulations à titre informatif. Il ne remplace ni un conseiller en investissements financiers (CIF) ni l'administration fiscale. L'analyse technique décrit le passé et ne constitue pas un conseil d'achat ou de vente.
 
 ## Licence
 
 Copyright © 2026 ChatCarbo
 
-Escarcelle est un logiciel libre distribué sous licence [GNU GPL v3.0 ou ultérieure](LICENSE). Vous pouvez l'utiliser, l'étudier, le modifier et le redistribuer. Toute version modifiée que vous distribuez doit rester sous la même licence, avec son code source.
+€scarcell est un logiciel libre distribué sous licence [GNU GPL v3.0 ou ultérieure](LICENSE). Vous pouvez l'utiliser, l'étudier, le modifier et le redistribuer. Toute version modifiée que vous distribuez doit rester sous la même licence, avec son code source.
 
 Les cours de bourse affichés proviennent de Yahoo Finance et ne sont pas couverts par cette licence.

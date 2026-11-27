@@ -1,11 +1,11 @@
 [package]
-name = "escarcelle-app"
-description = "Application de bureau Escarcelle (Tauri v2)"
+name = "escarcell"
+description = "Application de bureau €scarcell (Tauri v2)"
 version = "0.4.0"
 edition = "2021"
 authors = ["ChatCarbo"]
 license = "GPL-3.0-or-later"
-repository = "https://github.com/ChatCarbo/escarcelle"
+repository = "https://github.com/ChatCarbo/escarcell"
 rust-version = "1.77"
 
 [build-dependencies]
@@ -29,4 +29,4 @@ calamine = "0.26"
 # zip 2.6 a changé son API en restant en 2.x (ZipFile<R>) et ne compile plus avec calamine 0.26 :
 # version fixée à la dernière compatible, sans fonction supplémentaire (calamine active déjà « deflate »).
 zip = { version = "=2.4.2", default-features = false }
-escarcelle-core = { path = "../../crates/escarcelle-core" }
+escarcell-core = { path = "../../crates/escarcell-core" }

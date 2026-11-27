@@ -3,8 +3,8 @@
 //! par le journal, voir `import`).
 //! Seuls les titres cotés en euros sont acceptés.
 
-use escarcelle_core::dividendes::{self as div, Versement};
-use escarcelle_core::{Date, Money, Price, Rate};
+use escarcell_core::dividendes::{self as div, Versement};
+use escarcell_core::{Date, Money, Price, Rate};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -14,7 +14,7 @@ use crate::cours::{
 };
 use crate::store::{Position, Store};
 use crate::Etat;
-use escarcelle_core::analyse::{analyser, Tendance, TypeNiveau};
+use escarcell_core::analyse::{analyser, Tendance, TypeNiveau};
 
 type Resultat<T> = Result<T, String>;
 
@@ -573,7 +573,7 @@ pub async fn analyse_titre(
     };
     let mut b = historique(&etat.http, &symbole, if hebdo { "10y" } else { telecharge }).await?;
     if hebdo {
-        b = escarcelle_core::chandeliers::hebdomadaire(&b);
+        b = escarcell_core::chandeliers::hebdomadaire(&b);
         seances /= 5;
     }
     if b.len() < 30 {

@@ -118,7 +118,7 @@
       l.operations.map((o) => [l.nom, o.date, LIBELLES[o.type], eurosCsv(o.type === 'RETRAIT' ? -o.montant_cents : o.montant_cents)]),
     );
     try {
-      const chemin = await exporterCsv('escarcelle-livrets', ['Livret', 'Date de valeur', 'Opération', 'Montant (€)'], lignes);
+      const chemin = await exporterCsv('escarcell-livrets', ['Livret', 'Date de valeur', 'Opération', 'Montant (€)'], lignes);
       if (chemin) messageExport = `Export enregistré : ${chemin}`;
     } catch (e) {
       erreur = String(e);

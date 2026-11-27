@@ -14,7 +14,7 @@ labels: bug
 1.
 2.
 
-**Version d'Escarcelle** (affichée en bas du menu) :
+**Version d'€scarcell** (affichée en bas du menu) :
 **Système** : Windows 10 / 11
 
 <!-- Ne collez pas de données personnelles (numéro de compte, montants réels si vous préférez les arrondir). -->

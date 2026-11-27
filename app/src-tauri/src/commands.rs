@@ -1,10 +1,10 @@
 //! Commandes générales appelées par l'interface : virements des livrets et tableau de bord.
-//! Tous les calculs passent par `escarcelle-core`. Montants en centimes, taux en millionièmes.
+//! Tous les calculs passent par `escarcell-core`. Montants en centimes, taux en millionièmes.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use escarcelle_core::{Date, Money};
+use escarcell_core::{Date, Money};
 use serde::Serialize;
 use tauri::State;
 
@@ -32,10 +32,10 @@ fn date(s: &str) -> Resultat<Date> {
 #[tauri::command]
 pub fn ajouter_operation(etat: State<'_, Etat>, mut operation: Operation) -> Resultat<i64> {
     let d = date(&operation.date)?;
-    let debut = escarcelle_core::params::embarque::debut();
+    let debut = escarcell_core::params::embarque::debut();
     if d < debut {
         return Err(format!(
-            "Escarcelle connaît les taux des livrets depuis le {:02}/{:02}/{} : saisissez le solde à cette date plutôt que les opérations plus anciennes.",
+            "€scarcell connaît les taux des livrets depuis le {:02}/{:02}/{} : saisissez le solde à cette date plutôt que les opérations plus anciennes.",
             debut.day(),
             debut.month(),
             debut.year()
@@ -52,7 +52,7 @@ pub fn ajouter_operation(etat: State<'_, Etat>, mut operation: Operation) -> Res
     if !operation.montant_cents.is_some_and(|m| m > 0) {
         return Err("Le montant doit être positif.".into());
     }
-    if operation.montant_cents.is_some_and(|m| m > escarcelle_core::livret::MONTANT_MAX.cents()) {
+    if operation.montant_cents.is_some_and(|m| m > escarcell_core::livret::MONTANT_MAX.cents()) {
         return Err("Le montant ne peut pas dépasser 10 000 000 €.".into());
     }
     // Plafond et solde contrôlés à la date de valeur, avec toutes les opérations du livret.
@@ -66,7 +66,7 @@ pub fn ajouter_operation(etat: State<'_, Etat>, mut operation: Operation) -> Res
         if operation.montant_cents.unwrap_or(0) > max {
             return Err(format!(
                 "Un solde de départ ne peut dépasser le plafond ({plafond}) que des intérêts capitalisés : au-delà de {}, vérifiez le montant.",
-                escarcelle_core::Money::from_cents(max)
+                escarcell_core::Money::from_cents(max)
             ));
         }
     }

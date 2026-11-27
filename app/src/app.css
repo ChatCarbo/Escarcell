@@ -255,7 +255,9 @@ table.decomposition tr.total td { font-weight: 600; border-top: 2px solid var(--
 .absentes-import { max-width: 760px; margin-top: 8px; }
 
 /* Calendrier des dividendes */
-.calendrier .message table { margin-top: 8px; }
+.calendrier .message table { margin-top: 8px; width: 100%; }
+.calendrier .message td.actions { white-space: normal; }
+.calendrier .message input.court { width: 90px; }
 .calendrier .message td { vertical-align: middle; }
 .calendrier-liste .mois-titre td { font-weight: 600; padding-top: 14px; border-bottom: 1px solid var(--bord); }
 .histogramme { width: 100%; max-width: 720px; height: auto; display: block; margin-top: 8px; }
