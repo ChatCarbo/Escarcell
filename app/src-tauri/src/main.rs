@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod alertes;
+mod calendrier;
 mod chiffrement;
 mod commands;
 mod cours;
@@ -84,6 +85,10 @@ fn main() {
             import::supprimer_correspondance,
             import::enregistrer_modele,
             import_pea::analyser_fichier,
+            calendrier::calendrier_dividendes,
+            calendrier::enregistrer_dividende,
+            calendrier::ignorer_dividende,
+            calendrier::supprimer_dividende,
             import_pea::importer_positions,
         ])
         .run(tauri::generate_context!())

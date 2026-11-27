@@ -158,6 +158,17 @@ ALTER TABLE imports ADD COLUMN genre TEXT NOT NULL DEFAULT 'OPERATIONS';
 -- elle date les imports d'opérations (colonne import_id des opérations).
 DROP TABLE IF EXISTS imports_positions;
 "#,
+    r#"
+-- Version 0.4 : calendrier des dividendes. Un dividende enregistré depuis le calendrier garde le symbole de
+-- cotation de la ligne (une ligne saisie par son nom n'a pas toujours d'ISIN) ; un détachement que l'utilisateur
+-- choisit de ne pas enregistrer n'est plus proposé.
+ALTER TABLE operations ADD COLUMN symbole TEXT;
+CREATE TABLE dividendes_ignores (
+    symbole TEXT NOT NULL,
+    date    TEXT NOT NULL,
+    PRIMARY KEY (symbole, date)
+);
+"#,
 ];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -203,6 +214,17 @@ pub struct Position {
     /// Ligne calculée à partir du journal des achats et ventes importés.
     #[serde(default)]
     pub journal: bool,
+}
+
+/// Dividende encaissé dans le PEA (opération de type dividende : montant net crédité).
+#[derive(Clone, Debug, Serialize)]
+pub struct DividendePercu {
+    pub id: i64,
+    pub date: String,
+    pub isin: Option<String>,
+    pub symbole: Option<String>,
+    pub montant_cents: i64,
+    pub libelle: Option<String>,
 }
 
 /// État final d'une ligne du PEA après rejeu du journal (quantité 0 : ligne soldée, supprimée).
@@ -330,7 +352,7 @@ impl Store {
         tx.execute_batch(
             "DELETE FROM operations; DELETE FROM imports; DELETE FROM positions; \
              DELETE FROM comptes; DELETE FROM cours; DELETE FROM parametres; \
-             DELETE FROM dividendes; DELETE FROM infos_titres; DELETE FROM evenements;",
+             DELETE FROM dividendes; DELETE FROM dividendes_ignores; DELETE FROM infos_titres; DELETE FROM evenements;",
         )?;
         tx.commit()?;
         self.conn.execute_batch("VACUUM;")?;
@@ -656,6 +678,83 @@ impl Store {
         }
         tx.commit()?;
         Ok(())
+    }
+
+    // ---------- Dividendes encaissés ----------
+
+    /// Dividendes encaissés dans le PEA, par date.
+    pub fn dividendes_percus(&self) -> Result<Vec<DividendePercu>, StoreError> {
+        let mut st = self.conn.prepare(
+            "SELECT o.id, o.date, o.isin, o.symbole, o.montant_cents, o.libelle
+             FROM operations o JOIN comptes c ON c.id = o.compte_id
+             WHERE c.type = 'PEA' AND o.type = 'DIVIDENDE' AND o.montant_cents IS NOT NULL
+             ORDER BY o.date, o.id",
+        )?;
+        let rows = st.query_map([], |r| {
+            Ok(DividendePercu {
+                id: r.get(0)?,
+                date: r.get(1)?,
+                isin: r.get(2)?,
+                symbole: r.get(3)?,
+                montant_cents: r.get(4)?,
+                libelle: r.get(5)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Enregistre un dividende encaissé (montant net) ; le compte PEA est ouvert s'il n'existe pas.
+    pub fn ajouter_dividende(
+        &mut self,
+        date: &str,
+        isin: Option<&str>,
+        symbole: &str,
+        montant_cents: i64,
+        libelle: &str,
+    ) -> Result<i64, StoreError> {
+        let tx = self.conn.transaction()?;
+        let compte: Option<i64> = tx
+            .query_row("SELECT id FROM comptes WHERE type = 'PEA' AND cloture IS NULL ORDER BY id LIMIT 1", [], |r| {
+                r.get(0)
+            })
+            .optional()?;
+        let compte = match compte {
+            Some(id) => id,
+            None => {
+                tx.execute(
+                    "INSERT INTO comptes (nom, type, etablissement, produit, ouverture) VALUES ('PEA', 'PEA', '', NULL, ?1)",
+                    [date],
+                )?;
+                tx.last_insert_rowid()
+            }
+        };
+        tx.execute(
+            "INSERT INTO operations (compte_id, date, type, montant_cents, isin, symbole, frais_cents, libelle)
+             VALUES (?1, ?2, 'DIVIDENDE', ?3, ?4, ?5, 0, ?6)",
+            params![compte, date, montant_cents, isin, symbole, libelle],
+        )?;
+        let id = tx.last_insert_rowid();
+        tx.commit()?;
+        Ok(id)
+    }
+
+    /// Supprime un dividende encaissé (et rien d'autre).
+    pub fn supprimer_dividende(&self, id: i64) -> Result<(), StoreError> {
+        self.conn.execute("DELETE FROM operations WHERE id = ?1 AND type = 'DIVIDENDE'", [id])?;
+        Ok(())
+    }
+
+    /// Détachement que l'utilisateur ne veut pas enregistrer : il n'est plus proposé.
+    pub fn ignorer_dividende(&self, symbole: &str, date: &str) -> Result<(), StoreError> {
+        self.conn
+            .execute("INSERT OR IGNORE INTO dividendes_ignores (symbole, date) VALUES (?1, ?2)", [symbole, date])?;
+        Ok(())
+    }
+
+    pub fn dividendes_ignores(&self) -> Result<Vec<(String, String)>, StoreError> {
+        let mut st = self.conn.prepare("SELECT symbole, date FROM dividendes_ignores")?;
+        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<Result<_, _>>()?)
     }
 
     /// Supprime une ligne du PEA calculée par le journal, avec les achats et ventes de ce titre.

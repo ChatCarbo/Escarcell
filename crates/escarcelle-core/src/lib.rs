@@ -8,6 +8,7 @@
 //! - [`livret`] : intérêts du Livret A, LDDS et LEP par quinzaines ;
 //! - [`conseil_livret`] : meilleures dates de versement et de retrait, répartition entre livrets ;
 //! - [`dividendes`] : dividendes et retenues à la source dans le PEA ;
+//! - [`calendrier`] : calendrier des dividendes (à venir, à rapprocher, par mois) ;
 //! - [`import_csv`] : lecture et contrôle des fichiers CSV d'opérations ;
 //! - [`import_positions`] : lecture des exports de portefeuille (Moning, BoursoBank, tableurs) ;
 //! - [`journal`] : quantités et PRU du PEA recalculés à partir des achats et ventes ;
@@ -18,6 +19,7 @@
 //! conseiller en investissements financiers ni l'administration fiscale.
 
 pub mod analyse;
+pub mod calendrier;
 pub mod chandeliers;
 pub mod conseil_livret;
 pub mod date;

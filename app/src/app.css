@@ -253,3 +253,16 @@ table.decomposition tr.total td { font-weight: 600; border-top: 2px solid var(--
 .apercu-import .badge { margin-left: 0; }
 .import-pea p { margin: 8px 0; }
 .absentes-import { max-width: 760px; margin-top: 8px; }
+
+/* Calendrier des dividendes */
+.calendrier .message table { margin-top: 8px; }
+.calendrier .message td { vertical-align: middle; }
+.calendrier-liste .mois-titre td { font-weight: 600; padding-top: 14px; border-bottom: 1px solid var(--bord); }
+.histogramme { width: 100%; max-width: 720px; height: auto; display: block; margin-top: 8px; }
+.histogramme text { font-size: 11px; fill: var(--discret); }
+.histogramme .axe { stroke: var(--bord); }
+.barre-percu { fill: var(--positif); background: var(--positif); }
+.barre-annonce { fill: var(--accent); background: var(--accent); }
+.barre-estime { fill: color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.legende-histogramme { display: flex; flex-wrap: wrap; gap: 16px; color: var(--discret); }
+.legende-histogramme i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }

@@ -8,6 +8,7 @@
   import { open } from '@tauri-apps/plugin-dialog';
   import ImportPortefeuille from '../lib/ImportPortefeuille.svelte';
   import ImportOperations from '../lib/ImportOperations.svelte';
+  import CalendrierDividendes from '../lib/CalendrierDividendes.svelte';
 
   const PALETTE = ['#10B981', '#38BDF8', '#FBBF24', '#0284C7', '#34D399', '#F97316', '#8B5CF6'];
 
@@ -479,5 +480,9 @@
 
   {#if parts.length > 1}
     <Donut titre="Répartition des lignes" {parts} />
+  {/if}
+
+  {#if pf.lignes.length}
+    <CalendrierDividendes {pf} />
   {/if}
 {/if}

@@ -238,6 +238,16 @@ La fiche détaille ce que vous touchez vraiment sur un an :
 
 > Dans un PEA, la retenue étrangère est **perdue** : il n'y a pas d'impôt français sur lequel la déduire. C'est pourquoi les actions françaises sont souvent privilégiées dans ces plans pour toucher des dividendes.
 
+### Le calendrier des dividendes
+
+En bas de la page **PEA**, le calendrier rassemble ce que vos lignes vous ont rapporté et ce qu'elles devraient rapporter.
+
+- **À venir** : les détachements des 12 prochains mois, mois par mois, avec le montant net attendu. *Annoncé* : date et montant publiés par la source. *Estimé* : même date que l'an dernier et montant du même coupon l'an dernier ; si le dernier dividende a changé, le même changement est appliqué (TotalEnergies : acomptes passés de 0,85 € à 0,90 € → les suivants sont estimés à 0,90 €). Un changement de plus de 50 % (dividende exceptionnel) n'est pas appliqué. Les ETF capitalisants n'ont pas de dividende et n'apparaissent pas.
+- **Dividendes détachés à enregistrer** : de 15 à 90 jours après un détachement, s'il n'y a pas d'opération correspondante, Escarcelle propose de l'enregistrer, avec le montant net prérempli (quantité détenue aujourd'hui × dividende, moins la retenue à la source). Corrigez-le d'après votre relevé, puis **Enregistrer** ; **Ignorer** ne le propose plus.
+- **Perçus** : les dividendes enregistrés (ou importés avec un historique d'opérations) ; ✕ en supprime un.
+- **Année** : histogramme des dividendes nets par mois : perçus, annoncés, estimés.
+- **Synthèse** : dividendes nets des 12 derniers mois et des 12 prochains, rendement sur la valeur actuelle et sur le prix de revient (PRU), et les lignes qui rapportent le plus.
+
 ### Les assemblées générales
 
 Sur la fiche d'une ligne, saisissez la **date de l'AG** (et une note si vous voulez : lieu, vote par correspondance…), puis **Ajouter l'AG**. Les sociétés françaises publient cette date au **BALO** (sur journal-officiel.gouv.fr) et dans l'espace « Actionnaires » de leur site, en général au printemps.

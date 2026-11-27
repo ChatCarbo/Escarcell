@@ -55,7 +55,7 @@ pub fn retenue(db: &Store, pays: &str) -> Resultat<Option<Rate>> {
     Ok(div::retenue_par_defaut(pays))
 }
 
-fn pays_ligne(p: &Position) -> Option<String> {
+pub fn pays_ligne(p: &Position) -> Option<String> {
     p.pays
         .clone()
         .or_else(|| p.isin.as_deref().and_then(div::pays_isin).map(String::from))
@@ -113,6 +113,8 @@ pub struct PortefeuilleDto {
     pub div_net_cents: i64,
     /// Rendement brut des dividendes sur la valeur du portefeuille.
     pub div_rendement_micro: i64,
+    /// Rendement brut des dividendes sur le prix de revient (montant investi).
+    pub div_rendement_pru_micro: i64,
     /// Croissance moyenne du dividende, pondérée par les montants.
     pub div_croissance_micro: Option<i64>,
 }
@@ -212,6 +214,7 @@ pub fn calculer(db: &Store, jour: Date) -> Resultat<PortefeuilleDto> {
         div_brut_cents: div_brut,
         div_net_cents: div_net,
         div_rendement_micro: ratio(div_brut, valeur),
+        div_rendement_pru_micro: ratio(div_brut, investi),
         div_croissance_micro: div_croissance,
         lignes,
     })

@@ -24,6 +24,7 @@
 - **Alertes** : détachements de dividendes et assemblées générales des 45 prochains jours.
 - **Tableau de bord** avec répartition de l'épargne et dividendes nets annuels.
 - **Import** (0.4) depuis la page PEA : exports Moning, BoursoBank, Fortuneo, classeurs Excel ou historique d'opérations, reconnus automatiquement ; aperçu et import en un clic, après une copie de sécurité.
+- **Calendrier des dividendes** (0.4) : détachements des 12 prochains mois (annoncés ou estimés), dividendes perçus, rapprochement, histogramme par mois.
 - **Exports** en CSV (Excel) et en image PNG.
 - **Sauvegarde chiffrée** par mot de passe, restauration, effacement des données, et avis de nouvelle version (désactivé par défaut).
 
@@ -74,8 +75,8 @@ docs/                     Documentation
 
 ```sh
 cargo fmt --check && cargo clippy --all-targets -- -D warnings
-cargo test                       # cœur de calcul : 124 tests, sans réseau
-cd app/src-tauri && cargo test   # application : 38 tests (import, sauvegarde chiffrée, livrets, base, migration, cours, versions)
+cargo test                       # cœur de calcul : 132 tests, sans réseau
+cd app/src-tauri && cargo test   # application : 41 tests (calendrier des dividendes, import, sauvegarde chiffrée, livrets, base, migration, cours, versions)
 cd .. && npm install && npm run tauri dev
 ```
 

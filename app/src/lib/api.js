@@ -46,6 +46,10 @@ export const api = {
   enregistrerCorrespondance: (nom, colonnes) => invoke('enregistrer_correspondance', { nom, colonnes }),
   supprimerCorrespondance: (nom) => invoke('supprimer_correspondance', { nom }),
   enregistrerModele: (chemin) => invoke('enregistrer_modele', { chemin }),
+  calendrierDividendes: (annee) => invoke('calendrier_dividendes', { annee: annee ?? null }),
+  enregistrerDividende: (symbole, date, montantCents) => invoke('enregistrer_dividende', { symbole, date, montantCents }),
+  ignorerDividende: (symbole, date) => invoke('ignorer_dividende', { symbole, date }),
+  supprimerDividende: (id) => invoke('supprimer_dividende', { id }),
   analyserFichier: (chemin) => invoke('analyser_fichier', { chemin }),
   importerPositions: (chemin, supprimerAbsentes) => invoke('importer_positions', { chemin, supprimerAbsentes: !!supprimerAbsentes }),
 };
